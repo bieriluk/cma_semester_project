@@ -1,0 +1,119 @@
+---
+title: "Project code"
+author: "Lukas Bieri (bieriluk) & Valentin Hett (hettval1)"
+date: "14.05.2023"
+format: html
+editor: source
+---
+
+
+
+# Improved Transport Mode Detection & Public Transport Punctuality Assessment
+
+## 1. Informationen & Metadaten
+
+### 1.1 Zum Projekt
+
+Fallbeispiel mit Abschlussbericht über die multivariate Analyse am Beispiel der Habitatselektion des Rehs
+
+**Modul:** Research Methods HS22
+
+**Kurs:** Fallstudie MRU Biodiversity and Ecosystems
+
+**Dozierende:** Roland Graf (graf) & Reto Rupf (rupf)
+
+**Unterstützende Lehrpersonen:** Benjamin Sigrist (sigb) & Adrian Hochreutener (hoce)
+
+**Autoren:** Mirjam Scheib (scheimir), Valentin Hett (hettval1), Pascal Luder (luderpas), Lukas Bieri (bieriluk)
+
+**Stand:** 05.01.2023
+
+
+
+### 1.2 Ordnerstruktur R-Projekt
+
+Arbeiten erfolgten in einem R-Projekt auf der MS OneDrive über den Account der ZHAW, geteilt mit allen am Projekt mitarbeitenden Personen.
+
+Das Projekt wurde in folgendem Ordner erstellt:
+Shared_RProject_ReMe_Team3
+
+Daten welche im R versendet wurden, sind im Unterordner "data" abgelegt.
+Resultate, inbesondere Grafiken, wurden im Unterordner "Results" abgelegt.
+
+### 1.3 Verwendete Daten
+
+Verwendete Daten wurden von den Dozierenden und unterstützenden Lehrpersonen beschafft und zur Verfügung gestellt. Für die Auswertung wurden keine eigenen Daten beschafft oder erhoben.
+
+Folgende Daten wurden für die Auswertungen und Modellierungen in der vorliegenden Fallstudie verwendet:
+
+1.  File: Aufgabe3_Homeranges_Rehe_landforst_20221024.csv
+    Kurzbeschrieb:
+    Stand:
+    Metadaten:
+
+2.  File: Aufgabe3_Reh_Waldstruktur_221013.csv
+    Kurzbeschrieb:
+    Stand:
+    Metadaten:
+
+3.  File: Aufgabe4_Datensatz_Habitatnutzung_Modelle_20221031_moodle.csv
+    Kurzbeschrieb:
+    Stand:
+    Metadaten:
+
+4.  File: pk25_wpz.tif
+    Kurzbeschrieb:
+    Stand:
+    Metadaten:
+
+Alle heruntergeladen am 15.11.2022 vom Moodle-Server der ZHAW LSFM im Kurs Research Methods HS22 MSc ENR, Ordner ReMe HS22 MSc ENR/Fallstudie Biodiversity & Ecosystems/N_Daten: https://moodle.zhaw.ch/mod/folder/view.php?id=578940
+
+Ein Grossteil des Codes in R wurde aus den von der Modulleitung auf GitHub zu Verfügung gestellten Übungen zur Fallstudie übernommen und für unsere Zwecke angepasst und ergänzt.
+
+### 1.4 Verwendete Software
+
+**R version 4.2.1 (2022-06-23 ucrt)** -- "Funny-Looking Kid" Copyright (C) 2022 The R Foundation for Statistical Computing Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+**RStudio 2022.07.2+576** "Spotted Wakerobin" Release (e7373ef832b49b2a9b88162cfe7eac5f22c40b34, 2022-09-06) for Windows Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.12.8 Chrome/69.0.3497.128 Safari/537.36
+
+
+
+
+## 2. Vorbemerkungen & Vorbereitung
+
+Zur Vorbereitung: R-Session neu starten (Restart R) und Konsole berenigen (clear console)
+
+Dann: Funktion die wenn nötig die nötigen Packages installiert und lädt : - lme4 - bbmle - MuMIn - tidyverse - DHARMa - car - MASS - ROCR - sjPlot - ggeffects - sjstats - cowplot - magrittr - gstat - sf - raster - adehabitatHR - maptools - sp - ggspatial - rgeos - rgdal - PerformanceAnalytics - pastecs
+
+```{r}
+#| output: false
+#| warning: false
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) 
+    install.packages(new.pkg, repos = "http://cran.us.r-project.org", 
+                     dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE)
+}
+
+packages <- c("lme4", "bbmle", "MuMIn", "tidyverse", "DHARMa", "car", "MASS", 
+              "ROCR", "sjPlot",  "ggeffects", "sjstats", "cowplot", "magrittr", 
+              "gstat", "sf", "raster", "adehabitatHR", "maptools", "sp", 
+              "ggspatial", "rgeos", "rgdal", "PerformanceAnalytics", "pastecs")
+
+ipak(packages)
+```
+Prüfen ob die benötigten Packages korrekt geladen wurden.
+i.O. --> Weiter zum einlesen der Daten
+
+## 3. Daten(vor)verarbeitung
+
+### 3.1 Daten einlesen & anpassen
+
+**Daten für die Homerange-Berechnung einlesen**
+```{r}
+DF_rehe <- read_delim("data/Aufgabe3_Homeranges_Rehe_landforst_20211014.csv", 
+                      delim = ";")
+str(DF_rehe)
+```
+
