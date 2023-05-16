@@ -94,7 +94,7 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "traj")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr")
 
 ipak(packages)
 ```
@@ -180,6 +180,24 @@ posmo_filter <- posmo_filter|>
   mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
 ```
 
+Look for negative timelag values and visually validate that they are corrective algorith errors, then eliminate these rows incl. NA's. We deceided to also remove rows with 0 timelag since they mess with grouping an calculations. --> In the future for improvment: leave one row if timespamps are identical!
+```{r}
+posmo_filter |>
+    filter(timelag_s < 0)
+
+posmo_filter |>
+    filter(is.na(timelag_s))
+
+tm_shape(slice(posmo_filter,1261)) +
+  tm_dots()
+  tm_basemap("Esri.WorldImagery")
+  
+posmo_filter <- posmo_filter |>
+    filter(timelag_s > 0)
+
+```
+
+
 So what does the timelag between measurement points look like:
 ```{r}
 tail(posmo_filter)
@@ -187,6 +205,7 @@ mean(posmo_filter$timelag_s, na.rm = TRUE)
 median(posmo_filter$timelag_s, na.rm = TRUE)
 min(posmo_filter$timelag_s, na.rm = TRUE)
 max(posmo_filter$timelag_s, na.rm = TRUE)
+
 
 posmo_filter|> 
   ggplot(aes(timelag_s)) +
@@ -201,18 +220,49 @@ posmo_filter |>
   geom_line()
 
 ```
-Unfortunately the timelag between measurement points is very irregular. Maybe in a later step it would make sense to increase the granularity in the data to 
 
-For this exercise we try to use the data as is and try it with a window of 10 steps and 20 steps forward and backward in the data. This is roughly v = 20s-6min, because the most common timelag is 10s, with most being between 1 and 20s. 
+
+Calculate further features for outlier detection
+```{r}
+posmo_filter <- posmo_filter |> 
+  mutate(steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2)) |> 
+  mutate(speed_ms = steplength_m/timelag_s)
+posmo_filter
+```
+X = E, Y = N
+
+Identify and remove outliers
+```{r}
+mean(posmo_filter$speed_ms, na.rm = TRUE)
+median(posmo_filter$speed_ms, na.rm = TRUE)
+min(posmo_filter$speed_ms, na.rm = TRUE)
+max(posmo_filter$speed_ms, na.rm = TRUE)
+
+posmo_filter |>
+    filter(speed_ms > 140)
+
+tm_shape(slice(posmo_filter,1258:1260)) +
+  tm_dots()
+  tm_basemap("Esri.WorldImagery")
+```
 
 
 Resampling
 
-Whats is the timelag:
 
-
-Probieren mit traj:
 ```{r}
+
+posmo_filter_resamp <-  posmo_filter_resamp |>
+#  as.data.frame(col.names = "datetime")  |>
+  mutate(
+    datetime = seq.POSIXt(from = min(posmo_filter$datetime, na.rm = TRUE), to = max(posmo_filter$datetime, na.rm = TRUE), by = 10),
+    user_id = posmo_filter$user_id[1]
+  )
+
+posmo_filter_resamp <- posmo_filter |>
+  select(user_id, datetime, X, Y) 
+  
+
 
 ```
 
