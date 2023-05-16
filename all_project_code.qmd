@@ -77,8 +77,6 @@ Ein Grossteil des Codes in R wurde aus den von der Modulleitung auf GitHub zu Ve
 **RStudio 2022.07.2+576** "Spotted Wakerobin" Release (e7373ef832b49b2a9b88162cfe7eac5f22c40b34, 2022-09-06) for Windows Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.12.8 Chrome/69.0.3497.128 Safari/537.36
 
 
-
-
 ## 2. Vorbemerkungen & Vorbereitung
 
 Zur Vorbereitung: R-Session neu starten (Restart R) und Konsole berenigen (clear console)
@@ -96,10 +94,7 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("lme4", "bbmle", "MuMIn", "tidyverse", "DHARMa", "car", "MASS", 
-              "ROCR", "sjPlot",  "ggeffects", "sjstats", "cowplot", "magrittr", 
-              "gstat", "sf", "raster", "adehabitatHR", "maptools", "sp", 
-              "ggspatial", "rgeos", "rgdal", "PerformanceAnalytics", "pastecs")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "traj")
 
 ipak(packages)
 ```
@@ -112,8 +107,112 @@ i.O. --> Weiter zum einlesen der Daten
 
 **Daten für die Homerange-Berechnung einlesen**
 ```{r}
-DF_rehe <- read_delim("data/Aufgabe3_Homeranges_Rehe_landforst_20211014.csv", 
-                      delim = ";")
-str(DF_rehe)
+posmo <- read_delim("datasets/posmo_2023-01-01T00-00-00_2023-05-13T23-59-59_bieriluk.csv", delim = ",")
+
+```
+
+Check if the import got the Time Zone for the POSIXct colum correct (compare with the first entry in the imported data with the raw data):
+```{r}
+str(posmo)
+Sys.time()
+```
+
+Store your data frame as a spatial data frame and transform the coordinate system from WGS84 (i.e. EPSG 4326) to CH1903+ LV95 (EPSG 2056)
+```{r}
+posmo <- st_as_sf(posmo, coords = c("lon_x","lat_y"), crs = 4326) |>
+  st_transform(2056)
+
+head(posmo)
+```
+
+Extract the coordinates into separate coloms to use them for euclidean distance calculation:
+```{r}
+posmo_coordinates <- st_coordinates(posmo)
+
+posmo <- cbind(posmo, posmo_coordinates)
+```
+
+
+### 3.2 For how long were the individual tracked? Are there gaps? Were all individuals tracked concurrently or sequentially?
+```{r}
+ggplot(posmo, aes(DatetimeUTC)) +
+  geom_point()
+
+head(posmo)
+tail(posmo)
+```
+
+
+
+
+## 3. Getting an overview & EDA
+
+### 3.1 How many individuals were tracked 
+```{r}
+posmo$user_id |> unique()
+```
+--> 1 Individuals, because for the moment we are only working with on data set (not the POSMO Pool)
+
+Choose a single day for this step (13.04.2023, because many different visited places that day) and filter your data:
+```{r}
+posmo_filter <- posmo |>
+    filter(as.Date(datetime) == "2023-04-13")
+```
+
+```{r}
+ggplot(posmo_filter, aes(X,Y, color = datetime)) +
+  geom_point() +
+  geom_path() +
+  coord_equal()
+
+tmap_mode(mode = "view")
+
+tm_shape(posmo_filter) +
+  tm_dots()
+  tm_basemap("Esri.WorldImagery")
+```
+X = E, Y = N
+
+### 3.3 What is the temporal sampling interval between the locations?
+Calculate timelag to figure out a appropriate temporal window:
+```{r}
+posmo_filter <- posmo_filter|>
+  mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
+```
+
+So what does the timelag between measurement points look like:
+```{r}
+tail(posmo_filter)
+mean(posmo_filter$timelag_s, na.rm = TRUE)
+median(posmo_filter$timelag_s, na.rm = TRUE)
+min(posmo_filter$timelag_s, na.rm = TRUE)
+max(posmo_filter$timelag_s, na.rm = TRUE)
+
+posmo_filter|> 
+  ggplot(aes(timelag_s)) +
+  geom_histogram(binwidth = 1) +
+  lims(x = c(0, 20000)) +
+  scale_y_log10() +
+  scale_x_log10()
+
+posmo_filter |> 
+  ggplot(aes(datetime, timelag_s)) +
+  geom_point() + 
+  geom_line()
+
+```
+Unfortunately the timelag between measurement points is very irregular. Maybe in a later step it would make sense to increase the granularity in the data to 
+
+For this exercise we try to use the data as is and try it with a window of 10 steps and 20 steps forward and backward in the data. This is roughly v = 20s-6min, because the most common timelag is 10s, with most being between 1 and 20s. 
+
+
+Resampling
+
+Whats is the timelag:
+
+
+Probieren mit traj:
+```{r}
+
 ```
 
