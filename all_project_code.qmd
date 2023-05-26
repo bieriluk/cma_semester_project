@@ -297,22 +297,146 @@ posmo_filter_resamp <- posmo_filter_clean |>
 n_distinct(posmo_filter_resamp$datetime)
 sum(n_distinct(posmo_filter_clean$datetime), n_distinct(resamp_timestamps$datetime))
 
-# Linearly interpolate the missing values (coordinates)
+# Linearly interpolate the missing values (coordinates) & Filter to only the resampled rows
 posmo_filter_approx <- posmo_filter_resamp |>
   st_drop_geometry()|>
   mutate(X = na.approx(X),
          Y = na.approx(Y)
          ) |>
-  filter()
+  filter(second(datetime) %in%  c(0, 10, 20, 30, 40, 50)) |>
+  st_as_sf(coords = c("X","Y"), crs = 2056, remove = FALSE)
 
+posmo_filter_approx
 
-# Filter to only the resampled rows
-
+tm_shape(posmo_filter_approx) +
+  tm_dots()
+  tm_basemap("Esri.WorldImagery")
 
 ```
 
-Segmentation
+### Segmentation
 
+#### 3.2.1 Get an overview
+```{r}
+ggplot(posmo_filter_approx, aes(X,Y, color = datetime)) +
+  geom_point() +
+  geom_path() +
+  coord_equal()
+```
+X = E, Y = N
+
+```{r}
+posmo_filter_approx|> 
+  head(50) |> 
+  ggplot(aes(datetime, 1)) +
+  geom_point()
+```
+
+#### 3.2.2 (a) Specify a temporal windows v for in which to measure Euclidean distances
+Calculate timelag to figure out a appropriate temporal window:
+```{r}
+posmo_filter_approx <- posmo_filter_approx|>
+  mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
+```
+
+So what does the timelag between measurement points look like:
+```{r}
+tail(posmo_filter_approx)
+mean(posmo_filter_approx$timelag_s, na.rm = TRUE)
+median(posmo_filter_approx$timelag_s, na.rm = TRUE)
+min(posmo_filter_approx$timelag_s, na.rm = TRUE)
+max(posmo_filter_approx$timelag_s, na.rm = TRUE)
+
+```
+
+For this exercise we try to use the data as is and try it with a window of 6 steps and 6 steps forward and backward in the data. This is v = 2min, because the timelag is 10s.
+
+#### 3.2.3 (b) Measure the distance from every point to every other point within this temporal window v
+```{r}
+posmo_filter_approx <- posmo_filter_approx |> 
+  mutate(
+    n_plus10 = sqrt((lead(X,10) - X)^2 + (lead(Y,10) - Y)^2),
+    n_plus20 = sqrt((lead(X,20) - X)^2 + (lead(Y,20) - Y)^2),
+    n_minus10 = sqrt((lag(X,10) - X)^2 + (lag(Y,10) - Y)^2),
+    n_minus20 = sqrt((lag(X,20) - X)^2 + (lag(Y,20) - Y)^2)
+  )
+```
+Segmentation: ave.distance d =3m, temporal window v = 300s, Filtering: 60s
+
+
+```{r}
+posmo_filter_approx <- posmo_filter_approx |> 
+  rowwise() |> 
+  mutate(
+    stepMean = mean(c(n_minus10, n_minus20, n_plus10, n_plus20))
+  ) |> 
+  ungroup()
+```
+Careful, you need rowwise() for the mutate() function to caclulate mean() for every row. You need to ungroup it in the end, because your data frame has the rowwise grouping saved.
+
+#### 3.2.4 (c) Remove “static points”: These are points where the average distance is less than a given threshold
+
+We need to determine the appropriate threshold where the points are stationary. It helps to visualize the data:
+```{r}
+ggplot(posmo_filter_approx, aes(stepMean)) +
+  geom_histogram(binwidth = 10) +
+  geom_vline(xintercept = median(posmo_filter$stepMean, na.rm = TRUE))
+```
+
+
+### 3.3 Task 2: Specify and apply threshold d
+To find a good threshold, I tried different distances which I would realistically travel when not being stationary.
+```{r}
+posmo_filter_segm <- posmo_filter_approx |>
+    ungroup() |>
+    mutate(static = stepMean < 120) |>
+    drop_na(static)
+```
+
+### 3.4 Task 3: Visualize segmented trajectories
+```{r}
+ggplot(posmo_filter_segm, aes(X,Y)) +
+  geom_path() +
+  geom_point(aes(color = static)) +
+  coord_equal()
+
+tm_shape(posmo_filter_segm) +
+  tm_dots(col = "static") +
+  tm_basemap("Esri.WorldImagery")
+
+```
+Moving 10 in approx. 300sec being the threshold for being stationary seems to line up well with the reality when visualizing it.
+
+### 3.5 Task 4: Segment-based analysis
+Create function for segmentation at the stationary points:
+```{r}
+rle_id <- function(vec) {
+    x <- rle(vec)$lengths
+    as.factor(rep(seq_along(x), times = x))
+}
+```
+
+Run the function on the data:
+```{r}
+posmo_filter_segm <- posmo_filter_segm |>
+    mutate(segment_id = rle_id(static))
+
+head(posmo_filter_segm)
+```
+
+Visualize the segments:
+```{r}
+ggplot(posmo_filter_segm, aes(X,Y)) +
+  geom_path() +
+  geom_point(aes(color = segment_id)) +
+  coord_equal()
+
+tm_shape(posmo_filter_segm) +
+  tm_dots(col = "segment_id") +
+  tm_basemap("Esri.WorldImagery")
+```
+
+Seems to line up well with ground truth for that day and the trips I took. If I would want to improve the segmentation, I would have to compare the details with reality and maybe smoothen out the differences in timelags.
 
 Unsupervised algorithm using k-means clustering
 
