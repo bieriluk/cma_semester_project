@@ -1,7 +1,7 @@
 ---
 title: "Project code"
 author: "Lukas Bieri (bieriluk) & Valentin Hett (hettval1)"
-date: "14.05.2023"
+date: "17.05.2023"
 format: html
 editor: source
 ---
@@ -94,7 +94,7 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat")
 
 ipak(packages)
 ```
@@ -125,7 +125,7 @@ posmo <- st_as_sf(posmo, coords = c("lon_x","lat_y"), crs = 4326) |>
 head(posmo)
 ```
 
-Extract the coordinates into separate coloms to use them for euclidean distance calculation:
+Extract the coordinates into separate colums to use them for euclidean distance calculation:
 ```{r}
 posmo_coordinates <- st_coordinates(posmo)
 
@@ -135,8 +135,6 @@ posmo <- cbind(posmo, posmo_coordinates)
 
 ### 3.2 For how long were the individual tracked? Are there gaps? Were all individuals tracked concurrently or sequentially?
 ```{r}
-ggplot(posmo, aes(DatetimeUTC)) +
-  geom_point()
 
 head(posmo)
 tail(posmo)
@@ -173,26 +171,54 @@ tm_shape(posmo_filter) +
 ```
 X = E, Y = N
 
+
+### Remove deuplicate time stamps
+Calculate timelag and also remove values with the same time stamp by summarising unsing the mean.
+```{r}
+
+posmo_filter_clean <- posmo_filter|>
+  st_drop_geometry()|>
+  select(datetime, X, Y)|>
+  mutate(
+    datetime = unclass(datetime)
+    ) |>
+  group_by(datetime)|>
+  summarise(
+    X = mean(X, na.rm = TRUE),
+    Y = mean(Y, na.rm = TRUE)
+  ) |>
+  ungroup()|>
+  mutate(
+    datetime = as.POSIXct(datetime, origin = '1970-01-01', tz = "UTC")
+    )|>
+  st_as_sf(coords = c("X","Y"), crs = 2056, remove = FALSE) 
+
+n_distinct(posmo_filter_clean$datetime)
+n_distinct(posmo_filter$datetime)
+```
+
+
 ### 3.3 What is the temporal sampling interval between the locations?
 Calculate timelag to figure out a appropriate temporal window:
 ```{r}
-posmo_filter <- posmo_filter|>
+posmo_filter_clean <- posmo_filter_clean |>
   mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
+
 ```
 
-Look for negative timelag values and visually validate that they are corrective algorith errors, then eliminate these rows incl. NA's. We deceided to also remove rows with 0 timelag since they mess with grouping an calculations. --> In the future for improvment: leave one row if timespamps are identical!
+Look for negative timelag values and visually validate that they are corrective algorith errors, then eliminate these rows incl. NA's. 
 ```{r}
-posmo_filter |>
+posmo_filter_clean |>
     filter(timelag_s < 0)
 
-posmo_filter |>
+posmo_filter_clean |>
     filter(is.na(timelag_s))
 
-tm_shape(slice(posmo_filter,1261)) +
+tm_shape(slice(posmo_filter_clean,1261)) +
   tm_dots()
   tm_basemap("Esri.WorldImagery")
   
-posmo_filter <- posmo_filter |>
+posmo_filter_clean <- posmo_filter_clean |>
     filter(timelag_s > 0)
 
 ```
@@ -200,21 +226,21 @@ posmo_filter <- posmo_filter |>
 
 So what does the timelag between measurement points look like:
 ```{r}
-tail(posmo_filter)
-mean(posmo_filter$timelag_s, na.rm = TRUE)
-median(posmo_filter$timelag_s, na.rm = TRUE)
-min(posmo_filter$timelag_s, na.rm = TRUE)
-max(posmo_filter$timelag_s, na.rm = TRUE)
+tail(posmo_filter_clean)
+mean(posmo_filter_clean$timelag_s, na.rm = TRUE)
+median(posmo_filter_clean$timelag_s, na.rm = TRUE)
+min(posmo_filter_clean$timelag_s, na.rm = TRUE)
+max(posmo_filter_clean$timelag_s, na.rm = TRUE)
 
 
-posmo_filter|> 
+posmo_filter_clean|> 
   ggplot(aes(timelag_s)) +
   geom_histogram(binwidth = 1) +
   lims(x = c(0, 20000)) +
   scale_y_log10() +
   scale_x_log10()
 
-posmo_filter |> 
+posmo_filter_clean |> 
   ggplot(aes(datetime, timelag_s)) +
   geom_point() + 
   geom_line()
@@ -224,24 +250,24 @@ posmo_filter |>
 
 Calculate further features for outlier detection
 ```{r}
-posmo_filter <- posmo_filter |> 
+posmo_filter_clean <- posmo_filter_clean |> 
   mutate(steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2)) |> 
   mutate(speed_ms = steplength_m/timelag_s)
-posmo_filter
+posmo_filter_clean
 ```
 X = E, Y = N
 
 Identify and remove outliers
 ```{r}
-mean(posmo_filter$speed_ms, na.rm = TRUE)
-median(posmo_filter$speed_ms, na.rm = TRUE)
-min(posmo_filter$speed_ms, na.rm = TRUE)
-max(posmo_filter$speed_ms, na.rm = TRUE)
+mean(posmo_filter_clean$speed_ms, na.rm = TRUE)
+median(posmo_filter_clean$speed_ms, na.rm = TRUE)
+min(posmo_filter_clean$speed_ms, na.rm = TRUE)
+max(posmo_filter_clean$speed_ms, na.rm = TRUE)
 
-posmo_filter |>
+posmo_filter_clean |>
     filter(speed_ms > 140)
 
-tm_shape(slice(posmo_filter,1258:1260)) +
+tm_shape(slice(posmo_filter_clean,1258:1260)) +
   tm_dots()
   tm_basemap("Esri.WorldImagery")
 ```
@@ -249,20 +275,51 @@ tm_shape(slice(posmo_filter,1258:1260)) +
 
 Resampling
 
-
+Adding new rows with the resampled time stamps and linearly interpolating them using na.approx() 
 ```{r}
+# Create a new df with all necessary time stamps
 
-posmo_filter_resamp <-  posmo_filter_resamp |>
-#  as.data.frame(col.names = "datetime")  |>
-  mutate(
-    datetime = seq.POSIXt(from = min(posmo_filter$datetime, na.rm = TRUE), to = max(posmo_filter$datetime, na.rm = TRUE), by = 10),
-    user_id = posmo_filter$user_id[1]
-  )
+resamp_timestamps <- seq.POSIXt(from = ceiling_date(min(posmo_filter_clean$datetime), "10 sec"),
+                                to = floor_date(max(posmo_filter_clean$datetime), "10 sec"), 
+                                by = 10)
+resamp_timestamps <- as.data.frame(resamp_timestamps)
 
-posmo_filter_resamp <- posmo_filter |>
-  select(user_id, datetime, X, Y) 
-  
+resamp_timestamps <- resamp_timestamps |> 
+  as.data.frame() |> 
+  rename(datetime = resamp_timestamps)
+
+# Combine the df with the resulting df adding rows with NA for the nessecary time stamps
+posmo_filter_resamp <- posmo_filter_clean |>
+  select(datetime, X, Y, geometry) |>
+  full_join(resamp_timestamps, by = "datetime") |>
+  arrange(datetime)
+
+n_distinct(posmo_filter_resamp$datetime)
+sum(n_distinct(posmo_filter_clean$datetime), n_distinct(resamp_timestamps$datetime))
+
+# Linearly interpolate the missing values (coordinates)
+posmo_filter_approx <- posmo_filter_resamp |>
+  st_drop_geometry()|>
+  mutate(X = na.approx(X),
+         Y = na.approx(Y)
+         ) |>
+  filter()
+
+
+# Filter to only the resampled rows
 
 
 ```
+
+Segmentation
+
+
+Unsupervised algorithm using k-means clustering
+
+
+GIS multi-criteria process 
+
+
+Supervised learning algorithms
+
 
