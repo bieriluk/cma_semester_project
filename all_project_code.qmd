@@ -94,7 +94,7 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere")
 
 ipak(packages)
 ```
@@ -358,10 +358,12 @@ posmo_filter_approx <- posmo_filter_approx |>
     n_plus10 = sqrt((lead(X,10) - X)^2 + (lead(Y,10) - Y)^2),
     n_plus20 = sqrt((lead(X,20) - X)^2 + (lead(Y,20) - Y)^2),
     n_minus10 = sqrt((lag(X,10) - X)^2 + (lag(Y,10) - Y)^2),
-    n_minus20 = sqrt((lag(X,20) - X)^2 + (lag(Y,20) - Y)^2)
+    n_minus20 = sqrt((lag(X,20) - X)^2 + (lag(Y,20) - Y)^2),
+    steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2),
+    speed_ms = steplength_m/timelag_s
   )
 ```
-Segmentation: ave.distance d =3m, temporal window v = 300s, Filtering: 60s
+Segmentation: temporal window v = 200s, Filtering: 60s
 
 
 ```{r}
@@ -385,11 +387,13 @@ ggplot(posmo_filter_approx, aes(stepMean)) +
 
 
 ### 3.3 Task 2: Specify and apply threshold d
-To find a good threshold, I tried different distances which I would realistically travel when not being stationary.
+To find a good threshold, I tried different distances which I would realistically travel when not being stationary. ave.distance d =100m
+A trip (Segment) may be conducted with different transportation modes, and can, therefore, be divided into segments where each segment indicate a certain transport mode. For instance, a trip can start with a car and end with a bus. First, we identify GPS tracking stops that are longer than a specific threshold (30s). A stop is considered when consecutive points in an interval of above 30 s do not have a speed higher than 2 km/h. The stops are where the transportation mode might have changed and subsegments might be formed.
 ```{r}
 posmo_filter_segm <- posmo_filter_approx |>
     ungroup() |>
-    mutate(static = stepMean < 120) |>
+    mutate(
+      static = (stepMean < 100) | (lead(speed_ms,1) < 0.555555 & lead(speed_ms,2) < 0.555555 & lag(speed_ms,1) < 0.555555 & lag(speed_ms,2) < 0.555555)) |>
     drop_na(static)
 ```
 
@@ -405,7 +409,7 @@ tm_shape(posmo_filter_segm) +
   tm_basemap("Esri.WorldImagery")
 
 ```
-Moving 10 in approx. 300sec being the threshold for being stationary seems to line up well with the reality when visualizing it.
+Moving 10 in approx. 300sec being the threshold and no more than 2km/h within 30s for being stationary seems to line up well with the reality when visualizing it.
 
 ### 3.5 Task 4: Segment-based analysis
 Create function for segmentation at the stationary points:
@@ -438,7 +442,47 @@ tm_shape(posmo_filter_segm) +
 
 Seems to line up well with ground truth for that day and the trips I took. If I would want to improve the segmentation, I would have to compare the details with reality and maybe smoothen out the differences in timelags.
 
+Remove segments with a duration of less than 60s
+```{r}
+
+```
+
+
+Subsegmentation by speed & Feature extraction
+
+Feature extraction
+```{r}
+posmo_filter_segm <- posmo_filter_segm |> 
+  mutate(steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2),
+  speed_ms = steplength_m/timelag_s,
+  acc_mss = as.numeric(speed_ms - (lead(speed_ms)) / timelag_s),
+  long = st_coordinates(st_transform(posmo_filter_segm, 4326))[,1], 
+  lat = st_coordinates(st_transform(posmo_filter_segm, 4326))[,2],
+  bearing = atan2((cos(lat)*sin(lead(lat)) - sin(lat)*cos(lead(lat))* cos(long - lead(long))), (cos(lead(lat))* sin(long - lead(long))))
+  )
+
+```
+
+
+Feature extraction by subsegment
+```{r}
+posmo_filter_segm_summary <- posmo_filter_segm |> 
+  group_by(segment_id)|>
+  summarise(
+    avgspeed_ms = mean(speed_ms, na.rm = TRUE),
+    avgacc_mss = mean(Y, na.rm = TRUE)
+  ) |>
+  ungroup()|>
+```
+
+
 Unsupervised algorithm using k-means clustering
+```{r}
+select(posmo_filter_segm, datetime, geometry, timelag_s)
+
+?kmeans()
+```
+
 
 
 GIS multi-criteria process 
