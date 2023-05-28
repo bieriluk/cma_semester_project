@@ -442,31 +442,51 @@ tm_shape(posmo_filter_segm) +
 
 Seems to line up well with ground truth for that day and the trips I took. If I would want to improve the segmentation, I would have to compare the details with reality and maybe smoothen out the differences in timelags.
 
-Remove segments with a duration of less than 60s
+Remove segments with a duration of less than 60s and static points
 ```{r}
+posmo_filter_short_segm <- posmo_filter_segm |> 
+  group_by(segment_id)|>
+  summarise(
+    seg_length = sum(timelag_s, na.rm = TRUE)
+  ) |>
+  ungroup()|>
+  mutate(
+    short = seg_length < 60
+  ) |>
+  select(segment_id, short) |>
+  st_drop_geometry()
 
+posmo_filter_segm_clean <- posmo_filter_segm |> 
+  left_join(posmo_filter_short_segm, by = "segment_id") |> 
+  filter(static == FALSE) |>
+  filter(short == FALSE) |>
+  select(datetime, X, Y, geometry, segment_id)
+
+tm_shape(posmo_filter_segm_clean) +
+  tm_dots(col = "segment_id") +
+  tm_basemap("Esri.WorldImagery")
 ```
+**Offene Frage: Warum werden im Code der Exercise die "static points" nicht entfernt? So richtig wie ich das hier gemacht habe?**
 
-
-Subsegmentation by speed & Feature extraction
 
 Feature extraction
 ```{r}
-posmo_filter_segm <- posmo_filter_segm |> 
-  mutate(steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2),
-  speed_ms = steplength_m/timelag_s,
-  acc_mss = as.numeric(speed_ms - (lead(speed_ms)) / timelag_s),
-  long = st_coordinates(st_transform(posmo_filter_segm, 4326))[,1], 
-  lat = st_coordinates(st_transform(posmo_filter_segm, 4326))[,2],
-  bearing = atan2((cos(lat)*sin(lead(lat)) - sin(lat)*cos(lead(lat))* cos(long - lead(long))), (cos(lead(lat))* sin(long - lead(long))))
+posmo_filter_segm_clean <- posmo_filter_segm_clean |> 
+  mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)),
+         steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2),
+         speed_ms = steplength_m/timelag_s,
+         acc_mss = as.numeric(speed_ms - (lead(speed_ms)) / timelag_s),
+         long = st_coordinates(st_transform(posmo_filter_segm, 4326))[,1], 
+         lat = st_coordinates(st_transform(posmo_filter_segm, 4326))[,2],
+         bearing = atan2((cos(lat)*sin(lead(lat)) - sin(lat)*cos(lead(lat))* cos(long - lead(long))), (cos(lead(lat))* sin(long - lead(long))))
   )
 
 ```
 
 
-Feature extraction by subsegment
+Feature extraction by segment
 ```{r}
-posmo_filter_segm_summary <- posmo_filter_segm |> 
+posmo_filter_segm_summary <- posmo_filter_segm_clean |> 
   group_by(segment_id)|>
   summarise(
     avgspeed_ms = mean(speed_ms, na.rm = TRUE),
