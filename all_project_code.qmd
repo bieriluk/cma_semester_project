@@ -1,7 +1,7 @@
 ---
 title: "Project code"
 author: "Lukas Bieri (bieriluk) & Valentin Hett (hettval1)"
-date: "17.05.2023"
+date: "02.06.2023"
 format: html
 editor: source
 ---
@@ -94,7 +94,7 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan")
 
 ipak(packages)
 ```
@@ -153,8 +153,8 @@ posmo$user_id |> unique()
 
 Choose a single day for this step (13.04.2023, because many different visited places that day) and filter your data:
 ```{r}
-posmo_filter <- posmo |>
-    filter(as.Date(datetime) == "2023-04-13")
+posmo_filter <- posmo # |>
+#    filter(as.Date(datetime) == "2023-04-13")
 ```
 
 ```{r}
@@ -502,9 +502,8 @@ posmo_filter_segm_sry <- posmo_filter_segm_clean |>
     minacc_mss = min(acc_mss, na.rm = TRUE),
     seg_dist_m = sum(steplength_m, na.rm = TRUE),
     seg_avgdir = mean(azi, na.rm = TRUE),
-    seg_time_s = sum(timelag_s, na.rm = TRUE),
-    
-  ) |>
+    seg_time_s = sum(timelag_s, na.rm = TRUE)
+  )
 
 #Sinuosity is complicated, need to create a function. For the future:
 seg_sinuos = TrajSinuosity2(TrajFromCoords(posmo_filter_segm_clean))
@@ -513,16 +512,61 @@ seg_sinuos = TrajSinuosity2(TrajFromCoords(posmo_filter_segm_clean))
 **Durchschnittliche Richtung eines Segments als mittelwert des Azimuts korrekt? vmtl. nicht oder?**
 **Wie wird eine Funktions erstellt die o.g. Sinuosity-Funktion auf alle Segmente nach ID anwendet?**
 
-Unsupervised algorithm using k-means clustering
+
+Preliminary multi criteria analysis to eliminate walking segments
+
+However, walking can easily be identified in the GPS-tracking data based on three conditions:
+1. segment must have at least two positional recordings, and the segment’s duration should be more than 60 s Gong et al. (2012a). 
+2. The second condition is that the segment’s average speed should not be greater than 6 km/h 
+(Stopher et al., 2008). 
+3. The third condition is that each subsequent point’s maximum speed should not be greater than 12 km/h (Gong et al., 2012b; Stopher et al., 2008). All selected walk segments are checked 
+manually in GIS multi-criteria process because, it is difficult to differentiate between various modes in traffic and the traffic pattern for these modes were rather similar (walk, car, bus). After identification of the walk transport mode, those segments are removed from the dataset. 
 ```{r}
-?kmeans()
+posmo_filter_segm_walks <- posmo_filter_segm_sry |> 
+  mutate(
+    walks = seg_time_s > 60 & avgspeed_ms <= 1.66666 & maxspeed_ms < 3.33333
+  )
+
+posmo_filter_segm_onlywalks <- posmo_filter_segm_walks |> 
+  filter(walks == TRUE)
+
+posmo_filter_segm_nowalks <- posmo_filter_segm_walks |> 
+  filter(walks == FALSE)
+
+  tm_shape(posmo_filter_segm_onlywalks) +
+  tm_dots(col = "walks") +
+  tm_basemap("Esri.WorldImagery")
+
 ```
 
+
+Unsupervised algorithm using k-means clustering
+```{r}
+posmo_filter_seg_kmeans4 <- posmo_filter_segm_nowalks |> 
+  st_drop_geometry() |> 
+  data.matrix() |> 
+  kmeans(4)
+
+posmo_filter_seg_kmeans4
+
+posmo_filter_seg_cluster <- posmo_filter_segm_nowalks |> 
+  mutate(
+    kmeans4 = posmo_filter_seg_kmeans4$cluster
+  )
+
+tm_shape(posmo_filter_seg_cluster) +
+  tm_dots(col = "kmeans4") +
+  tm_basemap("Esri.WorldImagery")
+
+```
+**Wie kriege ich multiple clusters bei kmeans?**
 
 
 GIS multi-criteria process 
 
-- using similarity for comparing bus routes und bus departure times
+- using similarity for comparing bus routes and bus departure times
+
+st_join(join = st_is_within_distance, dist = 10)
 
 
 
