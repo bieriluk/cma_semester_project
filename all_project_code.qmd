@@ -94,7 +94,7 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms", "tibble", "useful")
 
 ipak(packages)
 ```
@@ -153,8 +153,8 @@ posmo$user_id |> unique()
 
 Choose a single day for this step (13.04.2023, because many different visited places that day) and filter your data:
 ```{r}
-posmo_filter <- posmo  |>
-    filter(as.Date(datetime) == "2023-04-13")
+posmo_filter <- posmo  #|>
+#    filter(as.Date(datetime) == "2023-04-13")
 
 test <- filter(posmo, hour(datetime) >= 7 & hour(datetime) <= 17)
 
@@ -485,10 +485,15 @@ posmo_filter_segm_clean <- posmo_filter_segm_clean |>
          long = st_coordinates(st_transform(posmo_filter_segm_clean, 4326))[,1], 
          lat = st_coordinates(st_transform(posmo_filter_segm_clean, 4326))[,2],
          azi = c(st_azimuth(head(st_geometry(posmo_filter_segm_clean),-1),
-                            head(lead(st_geometry(posmo_filter_segm_clean),1),-1)),NA)#,
+                            head(lead(st_geometry(posmo_filter_segm_clean),1),-1)),NA)
+         ) |> 
+  rowid_to_column(var = "id") |>
+  drop_na() 
+  
+#To add in future if appropriate:
+#,
 #        bearing_from = atan2((cos(lat)*sin(lead(lat)) - sin(lat)*cos(lead(lat))* cos(long - lead(long))), (cos(lead(lat))* sin(long - lead(long)))),
 #         bearing_geosp = bearing(st_coordinates(st_transform(posmo_filter_segm_clean, 4326)), lead(st_coordinates(st_transform(posmo_filter_segm_clean, 4326)),1)),
-  )
 
 ```
 **Wird Bearing hier korrekt berechnet? Was ist der Unterschied zwischen Azimut, Bearing, Direction, turning angles und heading? Was wäre hier am angebrachtesten**
@@ -496,16 +501,7 @@ posmo_filter_segm_clean <- posmo_filter_segm_clean |>
 Feature extraction by segment
 Therefore, features such as average speed, average acceleration, maximum and minimum speed, acceleration during each segment, segment distance, direction, and duration, are calculated for each segment. 
 ```{r}
-  
-
-
-posmo_filter_segm_siuos <- posmo_filter_segm_clean |>
-  filter(segment_id == 1)
-
-
-aggregate(geometry ~ segment_id, data=posmo_filter_segm_clean, sinuosity)
-?aggregate()
-
+ 
 posmo_filter_segm_sry <- posmo_filter_segm_clean |> 
   group_by(segment_id)|>
   summarise(
@@ -517,13 +513,11 @@ posmo_filter_segm_sry <- posmo_filter_segm_clean |>
     minacc_mss = min(acc_mss, na.rm = TRUE),
     seg_dist_m = sum(steplength_m, na.rm = TRUE),
     seg_avgdir = mean(azi, na.rm = TRUE),
-    seg_time_s = sum(timelag_s, na.rm = TRUE),
-    seg_sinuos = TrajSinuosity2(TrajFromCoords(drop_na(posmo_filter_segm_clean)))
+    seg_time_s = sum(timelag_s, na.rm = TRUE)#,
+#    seg_sinuos = TrajSinuosity2(TrajFromCoords(drop_na(posmo_filter_segm_clean)))
   )
 
 #Sinuosity is complicated, need to create a function. For the future:
-
-#seg_sinuos = TrajSinuosity2(TrajFromCoords(drop_na(posmo_filter_segm_clean)))
 
 #sinuosity <- function(traj) {
 #  for ( in traj) {
@@ -546,7 +540,10 @@ However, walking can easily be identified in the GPS-tracking data based on thre
 3. The third condition is that each subsequent point’s maximum speed should not be greater than 12 km/h (Gong et al., 2012b; Stopher et al., 2008). All selected walk segments are checked 
 manually in GIS multi-criteria process because, it is difficult to differentiate between various modes in traffic and the traffic pattern for these modes were rather similar (walk, car, bus). After identification of the walk transport mode, those segments are removed from the dataset. 
 ```{r}
-posmo_filter_segm_walks <- posmo_filter_segm_sry |> 
+
+posmo_filter_segm_clean <- left_join(posmo_filter_segm_clean, st_drop_geometry(posmo_filter_segm_sry), by = "segment_id")
+
+posmo_filter_segm_walks <- posmo_filter_segm_clean |> 
   mutate(
     walks = seg_time_s > 60 & avgspeed_ms <= 1.66666 & maxspeed_ms < 3.33333
   )
@@ -568,19 +565,26 @@ Unsupervised algorithm using k-means clustering
 ```{r}
 posmo_filter_seg_kmeans4 <- posmo_filter_segm_nowalks |> 
   st_drop_geometry() |> 
+  select(id, datetime, X, Y, steplength_m, speed_ms, acc_mss, azi) |> 
   data.matrix() |> 
   kmeans(4)
 
 posmo_filter_seg_kmeans4
+
+
+#Maually assign TM to the clusters
 
 posmo_filter_seg_cluster <- posmo_filter_segm_nowalks |> 
   mutate(
     kmeans4 = posmo_filter_seg_kmeans4$cluster
   )
 
-tm_shape(posmo_filter_seg_cluster) +
+posmo_filter_seg_cluster |>
+  filter(as.Date(datetime) == "2023-04-13") |>
+  tm_shape() +
   tm_dots(col = "kmeans4") +
   tm_basemap("Esri.WorldImagery")
+
 
 ```
 **Wie kriege ich multiple clusters bei kmeans?**
