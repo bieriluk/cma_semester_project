@@ -694,4 +694,9 @@ st_join(join = st_is_within_distance, dist = 10)
 
 ## 9. Supervised learning algorithms
 
+```{r}
+#randomForest(Species~., data=train, proximity=TRUE) print(rf)
+
+```
+
 
