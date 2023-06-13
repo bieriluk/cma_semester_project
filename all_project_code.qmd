@@ -105,7 +105,6 @@ i.O. --> Weiter zum einlesen der Daten
 
 ### 3.1 Daten einlesen & anpassen
 
-**Daten für die Homerange-Berechnung einlesen**
 ```{r}
 posmo <- read_delim("datasets/posmo_2023-01-01T00-00-00_2023-05-13T23-59-59_bieriluk.csv", delim = ",")
 
@@ -133,7 +132,10 @@ posmo <- cbind(posmo, posmo_coordinates)
 ```
 
 
-### 3.2 For how long were the individual tracked? Are there gaps? Were all individuals tracked concurrently or sequentially?
+
+### 3.2  Getting an overview & EDA
+
+#### 3.2.1 For how long were the individual tracked? Are there gaps? Were all individuals tracked concurrently or sequentially?
 ```{r}
 
 head(posmo)
@@ -141,16 +143,15 @@ tail(posmo)
 ```
 
 
-
-
-## 3. Getting an overview & EDA
-
-### 3.1 How many individuals were tracked 
+#### 3.2.2 How many individuals were tracked 
 ```{r}
 posmo$user_id |> unique()
 ```
 --> 1 Individuals, because for the moment we are only working with on data set (not the POSMO Pool)
 
+### 3.3  Filtering & Outlier detection
+
+#### 3.3.1 Filter the data for testing & checkin the method
 Choose a single day for this step (13.04.2023, because many different visited places that day) and filter your data:
 ```{r}
 posmo_filter <- posmo  #|>
@@ -176,7 +177,7 @@ tm_shape(posmo_filter) +
 X = E, Y = N
 
 
-### Remove deuplicate time stamps
+#### 3.3.2 Remove deuplicate time stamps
 Calculate timelag and also remove values with the same time stamp by summarising unsing the mean.
 ```{r}
 
@@ -202,7 +203,7 @@ n_distinct(posmo_filter$datetime)
 ```
 
 
-### 3.3 What is the temporal sampling interval between the locations?
+#### 3.3.3 Temporal sampling interval cleaning
 Calculate timelag to figure out a appropriate temporal window:
 ```{r}
 posmo_filter_clean <- posmo_filter_clean |>
@@ -251,7 +252,7 @@ posmo_filter_clean |>
 
 ```
 
-
+#### 3.3.4 Outlier detection and removal
 Calculate further features for outlier detection
 ```{r}
 posmo_filter_clean <- posmo_filter_clean |> 
@@ -277,7 +278,7 @@ tm_shape(slice(posmo_filter_clean,1258:1260)) +
 ```
 
 
-Resampling
+### 3.4  Resampling
 
 Adding new rows with the resampled time stamps and linearly interpolating them using na.approx() 
 ```{r}
@@ -318,9 +319,9 @@ tm_shape(posmo_filter_approx) +
 
 ```
 
-### Segmentation
+## 4. Segmentation
 
-#### 3.2.1 Get an overview
+### 4.1 Get an overview
 ```{r}
 ggplot(posmo_filter_approx, aes(X,Y, color = datetime)) +
   geom_point() +
@@ -336,7 +337,7 @@ posmo_filter_approx|>
   geom_point()
 ```
 
-#### 3.2.2 (a) Specify a temporal windows v for in which to measure Euclidean distances
+### 4.2 (a) Specify a temporal windows v for in which to measure Euclidean distances
 Calculate timelag to figure out a appropriate temporal window:
 ```{r}
 posmo_filter_approx <- posmo_filter_approx|>
@@ -355,7 +356,7 @@ max(posmo_filter_approx$timelag_s, na.rm = TRUE)
 
 For this exercise we try to use the data as is and try it with a window of 6 steps and 6 steps forward and backward in the data. This is v = 2min, because the timelag is 10s.
 
-#### 3.2.3 (b) Measure the distance from every point to every other point within this temporal window v
+### 4.3 (b) Measure the distance from every point to every other point within this temporal window v
 ```{r}
 posmo_filter_approx <- posmo_filter_approx |> 
   mutate(
@@ -380,7 +381,7 @@ posmo_filter_approx <- posmo_filter_approx |>
 ```
 Careful, you need rowwise() for the mutate() function to caclulate mean() for every row. You need to ungroup it in the end, because your data frame has the rowwise grouping saved.
 
-#### 3.2.4 (c) Remove “static points”: These are points where the average distance is less than a given threshold
+### 4.4 (c) Remove “static points”
 
 We need to determine the appropriate threshold where the points are stationary. It helps to visualize the data:
 ```{r}
@@ -389,8 +390,8 @@ ggplot(posmo_filter_approx, aes(stepMean)) +
   geom_vline(xintercept = median(posmo_filter$stepMean, na.rm = TRUE))
 ```
 
+These are points where the average distance is less than a given threshold or the min speed
 
-### 3.3 Task 2: Specify and apply threshold d
 To find a good threshold, I tried different distances which I would realistically travel when not being stationary. ave.distance d =100m
 A trip (Segment) may be conducted with different transportation modes, and can, therefore, be divided into segments where each segment indicate a certain transport mode. For instance, a trip can start with a car and end with a bus. First, we identify GPS tracking stops that are longer than a specific threshold (30s). A stop is considered when consecutive points in an interval of above 30 s do not have a speed higher than 2 km/h. The stops are where the transportation mode might have changed and subsegments might be formed.
 ```{r}
@@ -401,7 +402,7 @@ posmo_filter_segm <- posmo_filter_approx |>
     drop_na(static)
 ```
 
-### 3.4 Task 3: Visualize segmented trajectories
+### 4.5 Visualize stops
 ```{r}
 ggplot(posmo_filter_segm, aes(X,Y)) +
   geom_path() +
@@ -415,7 +416,7 @@ tm_shape(posmo_filter_segm) +
 ```
 Moving 10 in approx. 300sec being the threshold and no more than 2km/h within 30s for being stationary seems to line up well with the reality when visualizing it.
 
-### 3.5 Task 4: Segment-based analysis
+### 4.6 Segment-based analysis (segmentation at stationary points)
 Create function for segmentation at the stationary points:
 ```{r}
 rle_id <- function(vec) {
@@ -432,7 +433,7 @@ posmo_filter_segm <- posmo_filter_segm |>
 head(posmo_filter_segm)
 ```
 
-Visualize the segments:
+### 4.7 Visualize segmented trajectories
 ```{r}
 ggplot(posmo_filter_segm, aes(X,Y)) +
   geom_path() +
@@ -475,7 +476,9 @@ unique(posmo_filter_segm_clean$segment_id)
 **Offene Frage: Warum werden im Code der Exercise die "static points" nicht entfernt? So richtig wie ich das hier gemacht habe?**
 
 
-Feature extraction
+## 5. Feature extraction
+
+### 5.1 Feature extraction on the raw point data
 ```{r}
 posmo_filter_segm_clean <- posmo_filter_segm_clean |> 
   mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)),
@@ -498,7 +501,7 @@ posmo_filter_segm_clean <- posmo_filter_segm_clean |>
 ```
 **Wird Bearing hier korrekt berechnet? Was ist der Unterschied zwischen Azimut, Bearing, Direction, turning angles und heading? Was wäre hier am angebrachtesten**
 
-Feature extraction by segment
+### 5.2 Feature extraction & summary by segment
 Therefore, features such as average speed, average acceleration, maximum and minimum speed, acceleration during each segment, segment distance, direction, and duration, are calculated for each segment. 
 ```{r}
  
@@ -531,7 +534,7 @@ posmo_filter_segm_sry <- posmo_filter_segm_clean |>
 **Wie wird eine Funktions erstellt die o.g. Sinuosity-Funktion auf alle Segmente nach ID anwendet?**
 
 
-Preliminary multi criteria analysis to eliminate walking segments
+## 6. Preliminary multi criteria analysis to eliminate walking segments
 
 However, walking can easily be identified in the GPS-tracking data based on three conditions:
 1. segment must have at least two positional recordings, and the segment’s duration should be more than 60 s Gong et al. (2012a). 
@@ -561,46 +564,134 @@ posmo_filter_segm_nowalks <- posmo_filter_segm_walks |>
 ```
 
 
-Unsupervised algorithm using k-means clustering
+## 7. Unsupervised algorithm using k-means clustering
 ```{r}
 posmo_filter_seg_kmeans4 <- posmo_filter_segm_nowalks |> 
   st_drop_geometry() |> 
-  select(id, datetime, X, Y, steplength_m, speed_ms, acc_mss, azi) |> 
+  select(steplength_m, speed_ms, acc_mss, azi) |> 
   data.matrix() |> 
   kmeans(4)
 
 posmo_filter_seg_kmeans4
+```
 
+Manually assign TM to the clusters
+```{r}
+posmo_filter_seg_kmeans4
 
-#Maually assign TM to the clusters
+posmo_filter_seg_cluster |>
+  filter(as.Date(datetime) == "2023-04-13") |>
+  filter(kmeans4 == 3) |>
+  tm_shape() +
+  tm_dots(col = "kmeans4") +
+  tm_basemap("Esri.WorldImagery")
 
+```
+
+Add cluster number to data frame (later with manually assigned label)
+```{r}
 posmo_filter_seg_cluster <- posmo_filter_segm_nowalks |> 
   mutate(
     kmeans4 = posmo_filter_seg_kmeans4$cluster
   )
 
 posmo_filter_seg_cluster |>
-  filter(as.Date(datetime) == "2023-04-13") |>
+  filter(as.Date(datetime) == "2023-05-13") |>
   tm_shape() +
   tm_dots(col = "kmeans4") +
   tm_basemap("Esri.WorldImagery")
 
+```
+Good dates for Verification are 2023-05-12 (lonk bike track) and 2023-04-13 (ÖV and car)
+
+
+Test for non-multi-clusterd segments:
+```{r}
+test <- posmo_filter_seg_cluster |> 
+  group_by(segment_id)|>
+  summarise(
+    avgspeed_ms = mean(speed_ms, na.rm = TRUE),
+    avgacc_mss = mean(acc_mss, na.rm = TRUE),
+    maxspeed_ms = max(speed_ms, na.rm = TRUE),
+    minspeed_ms = min(speed_ms, na.rm = TRUE),
+    maxacc_mss = max(acc_mss, na.rm = TRUE),
+    minacc_mss = min(acc_mss, na.rm = TRUE),
+    seg_dist_m = sum(steplength_m, na.rm = TRUE),
+    seg_avgdir = mean(azi, na.rm = TRUE),
+    seg_time_s = sum(timelag_s, na.rm = TRUE),
+    seg_clear = all(min(kmeans4) == max(kmeans4), na.rm = TRUE)
+  )
+
+test |>
+  filter(seg_clear == TRUE) |>
+  tm_shape() +
+  tm_dots(col = "segment_id") +
+  tm_basemap("Esri.WorldImagery")
+```
+**The only ones clearly identified are walks that havent been identified as such by the multi-criteria analysis**
+
+
+
+## 8. GIS multi-criteria process 
+
+### 8.1 Preparation
+```{r}
 
 ```
-**Wie kriege ich multiple clusters bei kmeans?**
 
 
-GIS multi-criteria process 
+### 8.2 Bike mode detection
+For the bike mode, three rules are applied:
+1. First, the average speed of a trip segment is assumed below 25 km/h. 
+2. Second, the maximum speed of the segment should not be greater than 40 km/h. 
+3. Third, the total distance in a segment should be below 20 km. 
+
+```{r}
+
+```
+
+
+### 8.3 Train mode detection
+For the train mode, three rules are applied:
+1. The railway network, and the train stations are collected and used for detecting train mode.
+2. Second, the distance from each point of the trip segment to the nearest railway or commuter rail link should be less than 10 m. 
+3. Third, the maximum distance of the first and endpoint to the nearest train station should be 75 m (Gong et al., 2012b).
+
+First, based on multimodal transportation network, each sequential pair of GPS points within a train segment is matched to the similar link of the train network.
+```{r}
+
+```
 
 
 
+### 8.4 Bus mode detection
+Three rules, therefore, are applied to identify the bus mode:
+1. First, each segment’s positional recording needs to be close to bus routes with unique features, such as bus stops and lanes. 
+2. Second, the average speed of 88 km/h is considered (Gong et al., 2012b), while the maximum speed of a segment should be 100 km/h based on the traffic rules. 
+3. Third, the maximum distance to the bus station should be less than 75 m. 
 
+The remaining trip segments are considered potential car mode after applying the bus mode rules.
+
+```{r}
+
+```
+
+### 8.5 Car mode detection
+The rule applied in further identifying the car mode is that each car segment needed to follow the transportation network, and the maximum speed should not be greater than 180 km/h (Biljecki et al., 2013a). 
+
+```{r}
+
+```
+
+
+
+**Ideas:**
 - using similarity for comparing bus routes and bus departure times
 
 st_join(join = st_is_within_distance, dist = 10)
 
 
 
-Supervised learning algorithms
+## 9. Supervised learning algorithms
 
 
