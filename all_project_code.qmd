@@ -94,7 +94,7 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms")
 
 ipak(packages)
 ```
@@ -153,8 +153,12 @@ posmo$user_id |> unique()
 
 Choose a single day for this step (13.04.2023, because many different visited places that day) and filter your data:
 ```{r}
-posmo_filter <- posmo # |>
-#    filter(as.Date(datetime) == "2023-04-13")
+posmo_filter <- posmo  |>
+    filter(as.Date(datetime) == "2023-04-13")
+
+test <- filter(posmo, hour(datetime) >= 7 & hour(datetime) <= 17)
+
+hour(as_hms("17:00:00"))
 ```
 
 ```{r}
@@ -480,9 +484,10 @@ posmo_filter_segm_clean <- posmo_filter_segm_clean |>
          acc_mss = as.numeric(speed_ms - (lead(speed_ms)) / timelag_s),
          long = st_coordinates(st_transform(posmo_filter_segm_clean, 4326))[,1], 
          lat = st_coordinates(st_transform(posmo_filter_segm_clean, 4326))[,2],
-#         bearing_from = atan2((cos(lat)*sin(lead(lat)) - sin(lat)*cos(lead(lat))* cos(long - lead(long))), (cos(lead(lat))* sin(long - lead(long)))),
+         azi = c(st_azimuth(head(st_geometry(posmo_filter_segm_clean),-1),
+                            head(lead(st_geometry(posmo_filter_segm_clean),1),-1)),NA)#,
+#        bearing_from = atan2((cos(lat)*sin(lead(lat)) - sin(lat)*cos(lead(lat))* cos(long - lead(long))), (cos(lead(lat))* sin(long - lead(long)))),
 #         bearing_geosp = bearing(st_coordinates(st_transform(posmo_filter_segm_clean, 4326)), lead(st_coordinates(st_transform(posmo_filter_segm_clean, 4326)),1)),
-         azi = c(st_azimuth(st_geometry(posmo_filter_segm_clean[-nrow(posmo_filter_segm_clean),]), st_geometry(lead(posmo_filter_segm_clean,1)[-nrow(lead(posmo_filter_segm_clean,1)),])), NA)
   )
 
 ```
@@ -491,6 +496,16 @@ posmo_filter_segm_clean <- posmo_filter_segm_clean |>
 Feature extraction by segment
 Therefore, features such as average speed, average acceleration, maximum and minimum speed, acceleration during each segment, segment distance, direction, and duration, are calculated for each segment. 
 ```{r}
+  
+
+
+posmo_filter_segm_siuos <- posmo_filter_segm_clean |>
+  filter(segment_id == 1)
+
+
+aggregate(geometry ~ segment_id, data=posmo_filter_segm_clean, sinuosity)
+?aggregate()
+
 posmo_filter_segm_sry <- posmo_filter_segm_clean |> 
   group_by(segment_id)|>
   summarise(
@@ -502,11 +517,20 @@ posmo_filter_segm_sry <- posmo_filter_segm_clean |>
     minacc_mss = min(acc_mss, na.rm = TRUE),
     seg_dist_m = sum(steplength_m, na.rm = TRUE),
     seg_avgdir = mean(azi, na.rm = TRUE),
-    seg_time_s = sum(timelag_s, na.rm = TRUE)
+    seg_time_s = sum(timelag_s, na.rm = TRUE),
+    seg_sinuos = TrajSinuosity2(TrajFromCoords(drop_na(posmo_filter_segm_clean)))
   )
 
 #Sinuosity is complicated, need to create a function. For the future:
-seg_sinuos = TrajSinuosity2(TrajFromCoords(posmo_filter_segm_clean))
+
+#seg_sinuos = TrajSinuosity2(TrajFromCoords(drop_na(posmo_filter_segm_clean)))
+
+#sinuosity <- function(traj) {
+#  for ( in traj) {
+#  print(i)
+#}
+#    TrajSinuosity2(TrajFromCoords(drop_na(traj))) 
+#}
 
 ```
 **Durchschnittliche Richtung eines Segments als mittelwert des Azimuts korrekt? vmtl. nicht oder?**
@@ -563,6 +587,9 @@ tm_shape(posmo_filter_seg_cluster) +
 
 
 GIS multi-criteria process 
+
+
+
 
 - using similarity for comparing bus routes and bus departure times
 
