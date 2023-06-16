@@ -1,11 +1,10 @@
 ---
 title: "Project code"
 author: "Lukas Bieri (bieriluk) & Valentin Hett (hettval1)"
-date: "02.06.2023"
+date: "16.06.2023"
 format: html
 editor: source
 ---
-
 
 
 # Improved Transport Mode Detection & Public Transport Punctuality Assessment
@@ -106,7 +105,7 @@ i.O. --> Weiter zum einlesen der Daten
 ### 3.1 Daten einlesen & anpassen
 
 ```{r}
-posmo <- read_delim("datasets/posmo_2023-01-01T00-00-00_2023-05-13T23-59-59_bieriluk.csv", delim = ",")
+posmo <- read_delim("datasets/posmo_2023-01-01T00-00-00-00_2023-06-16T-23-59-59_unvalidated_def.csv", delim = ",")
 
 ```
 
@@ -318,6 +317,8 @@ tm_shape(posmo_filter_approx) +
   tm_basemap("Esri.WorldImagery")
 
 ```
+**Change resampling to 15s!**
+
 
 ## 4. Segmentation
 
@@ -515,23 +516,46 @@ posmo_filter_segm_sry <- posmo_filter_segm_clean |>
     maxacc_mss = max(acc_mss, na.rm = TRUE),
     minacc_mss = min(acc_mss, na.rm = TRUE),
     seg_dist_m = sum(steplength_m, na.rm = TRUE),
-    seg_avgdir = mean(azi, na.rm = TRUE),
-    seg_time_s = sum(timelag_s, na.rm = TRUE)#,
-#    seg_sinuos = TrajSinuosity2(TrajFromCoords(drop_na(posmo_filter_segm_clean)))
+    seg_time_s = sum(timelag_s, na.rm = TRUE)
   )
 
-#Sinuosity is complicated, need to create a function. For the future:
+#posmo_filter_segm_startend <- posmo_filter_segm_clean |> 
+#  group_by(segment_id)|>
+#seg_dir = c(st_azimuth(head(st_geometry(posmo_filter_segm_clean),-1),
+#                            head(lead(st_geometry(posmo_filter_segm_clean),1),-1)),NA) #starting point azi to end point
+```
+**Direction anpassen aus azi zwischen Startpunkt und Endpunkt pro Segment**
 
-#sinuosity <- function(traj) {
-#  for ( in traj) {
-#  print(i)
-#}
-#    TrajSinuosity2(TrajFromCoords(drop_na(traj))) 
-#}
+
+And calculate sinuosity (for random walk) using a for loop:
+```{r}
+iter <- unique(posmo_filter_segm_clean$segment_id)
+iter_i <- seq_along(iter)
+sin <- numeric(length = length(iter))
+
+for (seg_i in iter_i){
+  print(seg)
+    seg <- iter[seg_i]
+    
+    mysin <- posmo_filter_segm_clean |> 
+    filter(segment_id == seg) |> 
+    select(X, Y) |> 
+    TrajFromCoords() |> 
+    TrajSinuosity()
+  
+  sin[seg_i] <- mysin
+  print(mysin)
+}
+
+posmo_filter_segm_sry$sinuosity <- sin
+
+
+# nächstes mal besser mit purrr
+# apply, lappy, sapply, etc. auch möglich aber "schlecht" geschrieben
 
 ```
-**Durchschnittliche Richtung eines Segments als mittelwert des Azimuts korrekt? vmtl. nicht oder?**
-**Wie wird eine Funktions erstellt die o.g. Sinuosity-Funktion auf alle Segmente nach ID anwendet?**
+**Siuosity anpassen auf directed walk with a starting and an end point**
+
 
 
 ## 6. Preliminary multi criteria analysis to eliminate walking segments
@@ -565,10 +589,15 @@ posmo_filter_segm_nowalks <- posmo_filter_segm_walks |>
 
 
 ## 7. Unsupervised algorithm using k-means clustering
+
+**For improving k-means clustering add moving window features for speed, steplength and accelaration!**
+**And improve outlies removal for the cluster with 130km/h average speed**
+
+
 ```{r}
 posmo_filter_seg_kmeans4 <- posmo_filter_segm_nowalks |> 
   st_drop_geometry() |> 
-  select(steplength_m, speed_ms, acc_mss, azi) |> 
+  select(steplength_m, speed_ms, acc_mss, sinuosity, avgspeed_ms) |> 
   data.matrix() |> 
   kmeans(4)
 
@@ -580,7 +609,7 @@ Manually assign TM to the clusters
 posmo_filter_seg_kmeans4
 
 posmo_filter_seg_cluster |>
-  filter(as.Date(datetime) == "2023-04-13") |>
+#  filter(as.Date(datetime) == "2023-04-13") |>
   filter(kmeans4 == 3) |>
   tm_shape() +
   tm_dots(col = "kmeans4") +
@@ -596,13 +625,13 @@ posmo_filter_seg_cluster <- posmo_filter_segm_nowalks |>
   )
 
 posmo_filter_seg_cluster |>
-  filter(as.Date(datetime) == "2023-05-13") |>
+  filter(as.Date(datetime) == "2023-06-15") |>
   tm_shape() +
   tm_dots(col = "kmeans4") +
   tm_basemap("Esri.WorldImagery")
 
 ```
-Good dates for Verification are 2023-05-12 (lonk bike track) and 2023-04-13 (ÖV and car)
+Good dates for Verification are 2023-05-13 (long bike track) and 2023-04-13 (ÖV and car)
 
 
 Test for non-multi-clusterd segments:
@@ -617,7 +646,6 @@ test <- posmo_filter_seg_cluster |>
     maxacc_mss = max(acc_mss, na.rm = TRUE),
     minacc_mss = min(acc_mss, na.rm = TRUE),
     seg_dist_m = sum(steplength_m, na.rm = TRUE),
-    seg_avgdir = mean(azi, na.rm = TRUE),
     seg_time_s = sum(timelag_s, na.rm = TRUE),
     seg_clear = all(min(kmeans4) == max(kmeans4), na.rm = TRUE)
   )
@@ -628,7 +656,8 @@ test |>
   tm_dots(col = "segment_id") +
   tm_basemap("Esri.WorldImagery")
 ```
-**The only ones clearly identified are walks that havent been identified as such by the multi-criteria analysis**
+
+
 
 
 
@@ -648,6 +677,23 @@ For the bike mode, three rules are applied:
 
 ```{r}
 
+#posmo_filter_segm_clean <- left_join(posmo_filter_segm_clean, st_drop_geometry(posmo_filter_segm_sry), by = "segment_id")
+
+posmo_filter_segm_bike <- posmo_filter_segm_nowalks |> 
+  mutate(
+    bike = avgspeed_ms < 6.944 & maxspeed_ms <= 11.111 & seg_dist_m < 20000
+  )
+
+posmo_filter_segm_onlybike <- posmo_filter_segm_bike |> 
+  filter(bike == TRUE)
+
+posmo_filter_segm_nobike <- posmo_filter_segm_bike |> 
+  filter(bike == FALSE)
+
+  tm_shape(posmo_filter_segm_onlybike) +
+  tm_dots(col = "bike") +
+  tm_basemap("Esri.WorldImagery")
+
 ```
 
 
@@ -659,7 +705,20 @@ For the train mode, three rules are applied:
 
 First, based on multimodal transportation network, each sequential pair of GPS points within a train segment is matched to the similar link of the train network.
 ```{r}
+#posmo_filter_segm_train <- posmo_filter_segm_nobike |> 
+#  mutate(
+#    bike = avgspeed_ms < 6.944 & maxspeed_ms <= 11.111 & seg_dist_m < 20000
+#  )
 
+posmo_filter_segm_onlytrains <- posmo_filter_segm_train |> 
+  filter(train == TRUE)
+
+posmo_filter_segm_notrains <- posmo_filter_segm_train |> 
+  filter(train == FALSE)
+
+  tm_shape(posmo_filter_segm_onlytrains) +
+  tm_dots(col = "train") +
+  tm_basemap("Esri.WorldImagery")
 ```
 
 
@@ -696,7 +755,12 @@ st_join(join = st_is_within_distance, dist = 10)
 
 ```{r}
 #randomForest(Species~., data=train, proximity=TRUE) print(rf)
+?randomForest
+
 
 ```
 
 
+
+**Ideas for writing:**
+- further improvement possible with elevation modeles for bike mode detection
