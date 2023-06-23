@@ -1,7 +1,7 @@
 ---
 title: "Project code"
 author: "Lukas Bieri (bieriluk) & Valentin Hett (hettval1)"
-date: "16.06.2023"
+date: "23.06.2023"
 format: html
 editor: source
 ---
@@ -9,78 +9,33 @@ editor: source
 
 # Improved Transport Mode Detection & Public Transport Punctuality Assessment
 
-## 1. Informationen & Metadaten
+## 1. Information
 
-### 1.1 Zum Projekt
-
-Fallbeispiel mit Abschlussbericht über die multivariate Analyse am Beispiel der Habitatselektion des Rehs
-
-**Modul:** Research Methods HS22
-
-**Kurs:** Fallstudie MRU Biodiversity and Ecosystems
-
-**Dozierende:** Roland Graf (graf) & Reto Rupf (rupf)
-
-**Unterstützende Lehrpersonen:** Benjamin Sigrist (sigb) & Adrian Hochreutener (hoce)
-
-**Autoren:** Mirjam Scheib (scheimir), Valentin Hett (hettval1), Pascal Luder (luderpas), Lukas Bieri (bieriluk)
-
-**Stand:** 05.01.2023
+### 1.1 Project Info
 
 
+**Module:** Patterns and Trends HS22
 
-### 1.2 Ordnerstruktur R-Projekt
+**Course:** Semester Project
 
-Arbeiten erfolgten in einem R-Projekt auf der MS OneDrive über den Account der ZHAW, geteilt mit allen am Projekt mitarbeitenden Personen.
+**Lecturer:** Prof. Dr. Patrick Laube
 
-Das Projekt wurde in folgendem Ordner erstellt:
-Shared_RProject_ReMe_Team3
+**Assistent Lecturers:** Nils Ratnaweera & Dominic Lüönd
 
-Daten welche im R versendet wurden, sind im Unterordner "data" abgelegt.
-Resultate, inbesondere Grafiken, wurden im Unterordner "Results" abgelegt.
+**Autors:** Valentin Hett (hettval1) & Lukas Bieri (bieriluk)
 
-### 1.3 Verwendete Daten
+**Date:** 23.06.2023
 
-Verwendete Daten wurden von den Dozierenden und unterstützenden Lehrpersonen beschafft und zur Verfügung gestellt. Für die Auswertung wurden keine eigenen Daten beschafft oder erhoben.
 
-Folgende Daten wurden für die Auswertungen und Modellierungen in der vorliegenden Fallstudie verwendet:
-
-1.  File: Aufgabe3_Homeranges_Rehe_landforst_20221024.csv
-    Kurzbeschrieb:
-    Stand:
-    Metadaten:
-
-2.  File: Aufgabe3_Reh_Waldstruktur_221013.csv
-    Kurzbeschrieb:
-    Stand:
-    Metadaten:
-
-3.  File: Aufgabe4_Datensatz_Habitatnutzung_Modelle_20221031_moodle.csv
-    Kurzbeschrieb:
-    Stand:
-    Metadaten:
-
-4.  File: pk25_wpz.tif
-    Kurzbeschrieb:
-    Stand:
-    Metadaten:
-
-Alle heruntergeladen am 15.11.2022 vom Moodle-Server der ZHAW LSFM im Kurs Research Methods HS22 MSc ENR, Ordner ReMe HS22 MSc ENR/Fallstudie Biodiversity & Ecosystems/N_Daten: https://moodle.zhaw.ch/mod/folder/view.php?id=578940
-
-Ein Grossteil des Codes in R wurde aus den von der Modulleitung auf GitHub zu Verfügung gestellten Übungen zur Fallstudie übernommen und für unsere Zwecke angepasst und ergänzt.
-
-### 1.4 Verwendete Software
+### 1.2 Software used
 
 **R version 4.2.1 (2022-06-23 ucrt)** -- "Funny-Looking Kid" Copyright (C) 2022 The R Foundation for Statistical Computing Platform: x86_64-w64-mingw32/x64 (64-bit)
 
-**RStudio 2022.07.2+576** "Spotted Wakerobin" Release (e7373ef832b49b2a9b88162cfe7eac5f22c40b34, 2022-09-06) for Windows Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/5.12.8 Chrome/69.0.3497.128 Safari/537.36
+**RStudio 2023.06.0+421** "Mountain Hydrangea" Release (583b465ecc45e60ee9de085148cd2f9741cc5214, 2023-06-05) for windows
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) RStudio/2023.06.0+421 Chrome/110.0.5481.208 Electron/23.3.0 Safari/537.36
 
 
-## 2. Vorbemerkungen & Vorbereitung
-
-Zur Vorbereitung: R-Session neu starten (Restart R) und Konsole berenigen (clear console)
-
-Dann: Funktion die wenn nötig die nötigen Packages installiert und lädt : - lme4 - bbmle - MuMIn - tidyverse - DHARMa - car - MASS - ROCR - sjPlot - ggeffects - sjstats - cowplot - magrittr - gstat - sf - raster - adehabitatHR - maptools - sp - ggspatial - rgeos - rgdal - PerformanceAnalytics - pastecs
+## 2. Preparation
 
 ```{r}
 #| output: false
@@ -93,19 +48,42 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms", "tibble", "useful")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms", "tibble", "useful", "DescTools")
 
 ipak(packages)
 ```
-Prüfen ob die benötigten Packages korrekt geladen wurden.
-i.O. --> Weiter zum einlesen der Daten
+
+
+```{r}
+tmap_mode(mode = "view")
+```
 
 ## 3. Daten(vor)verarbeitung
 
-### 3.1 Daten einlesen & anpassen
+### 3.1 Import, check and transport data
+
+#### 3.1.1 Boundries
 
 ```{r}
-posmo <- read_delim("datasets/posmo_2023-01-01T00-00-00-00_2023-06-16T-23-59-59_unvalidated_def.csv", delim = ",")
+st_layers("datasets/swissTLMRegio_BOUNDARIES_LV95.gdb")
+kanton_zh <- st_read("datasets/swissTLMRegio_BOUNDARIES_LV95.gdb", layer = "TLMRegio_KANTONSGEBIET")
+kanton_zh <- kanton_zh |>
+  filter(NAME == "Zürich")
+
+st_crs(kanton_zh)
+
+tm_shape(kanton_zh) +
+  tm_polygons() +
+  tm_basemap("Esri.WorldImagery")
+
+```
+
+
+#### 3.1.2 Posmo data
+```{r}
+posmo <- read_delim("datasets/posmo_2023-01-01T00-00-00_2023-06-16T23-59-59_unvalidated_def.csv", delim = ",")
+
+posmo_valid <- read_delim("datasets/posmo_2023-01-01T00-00-00_2023-06-16T23-59-59_validated_def.csv", delim = ",")
 
 ```
 
@@ -118,9 +96,17 @@ Sys.time()
 Store your data frame as a spatial data frame and transform the coordinate system from WGS84 (i.e. EPSG 4326) to CH1903+ LV95 (EPSG 2056)
 ```{r}
 posmo <- st_as_sf(posmo, coords = c("lon_x","lat_y"), crs = 4326) |>
-  st_transform(2056)
+  st_transform(2056) |>
+  st_filter(kanton_zh, .pred = st_intersects)
+
+posmo_valid <- st_as_sf(posmo_valid, coords = c("lon_x","lat_y"), crs = 4326) |>
+  st_transform(2056) |>
+  st_filter(kanton_zh, .pred = st_intersects)
 
 head(posmo)
+tm_shape(posmo) +
+  tm_dots(col = "red") +
+  tm_basemap("Esri.WorldImagery")
 ```
 
 Extract the coordinates into separate colums to use them for euclidean distance calculation:
@@ -130,6 +116,59 @@ posmo_coordinates <- st_coordinates(posmo)
 posmo <- cbind(posmo, posmo_coordinates)
 ```
 
+
+#### 3.1.3 Railway routes data
+incl. Normalspurbahn, Schmalspurbahn, Standseilbahn, Seilbahn, Gondelbahn, Sessellift, Autoverlad
+excl. Güterbahn, Museumsbahn, Bahn ausser Betrieb, Bahn im Bau
+```{r}
+st_layers("datasets/swissTLMRegio_Produkt_LV95.gdb")
+train_routes <- st_read("datasets/swissTLMRegio_Produkt_LV95.gdb", layer = "TLMRegio_Railway")
+st_crs(train_routes)
+
+train_routes <- train_routes |>
+  filter(OBJVAL != 3 & UNDERCONST == 0) |>
+  st_filter(kanton_zh, .pred = st_intersects)
+
+train_stops <- st_read("datasets/swissTLMRegio_Produkt_LV95.gdb", layer = "TLMRegio_Terminal")
+
+train_stops <- train_stops |>
+  filter(OBJVAL == 1) |>
+  st_filter(kanton_zh, .pred = st_intersects)
+
+tm_shape(train_routes) +
+  tm_lines(col = "red") +
+  tm_shape(train_stops) + 
+  tm_dots(col = "red") +
+  tm_basemap("Esri.WorldImagery")
+  
+```
+
+
+#### 3.1.4 Bus & tram data
+```{r}
+st_layers("datasets/Linien_des_offentlichen_Verkehrs_-OGD.gpkg")
+bus_routes <- st_read("datasets/Linien_des_offentlichen_Verkehrs_-OGD.gpkg", layer = "ZVV_LINIEN_L")
+st_crs(bus_routes)
+bus_routes
+
+tm_shape(bus_routes)+
+  tm_lines()+
+  tm_basemap("Esri.WorldImagery")
+
+```
+
+#### 3.1.5 Road network data
+```{r}
+st_layers("datasets/swissTLMRegio_Produkt_LV95.gdb")
+roads <- st_read("datasets/swissTLMRegio_Produkt_LV95.gdb", layer = "TLMRegio_Road")
+roads <- roads |>
+  st_filter(kanton_zh, .pred = st_intersects)
+
+tm_shape(roads) +
+  tm_lines(col = "red") +
+  tm_basemap("Esri.WorldImagery")
+
+```
 
 
 ### 3.2  Getting an overview & EDA
@@ -156,6 +195,9 @@ Choose a single day for this step (13.04.2023, because many different visited pl
 posmo_filter <- posmo  #|>
 #    filter(as.Date(datetime) == "2023-04-13")
 
+posmo_valid_filter <- posmo_valid  |>
+    filter(as.Date(datetime) == "2023-04-13")
+
 test <- filter(posmo, hour(datetime) >= 7 & hour(datetime) <= 17)
 
 hour(as_hms("17:00:00"))
@@ -167,7 +209,6 @@ ggplot(posmo_filter, aes(X,Y, color = datetime)) +
   geom_path() +
   coord_equal()
 
-tmap_mode(mode = "view")
 
 tm_shape(posmo_filter) +
   tm_dots()
@@ -534,7 +575,7 @@ iter_i <- seq_along(iter)
 sin <- numeric(length = length(iter))
 
 for (seg_i in iter_i){
-  print(seg)
+  print(seg_i)
     seg <- iter[seg_i]
     
     mysin <- posmo_filter_segm_clean |> 
@@ -578,12 +619,26 @@ posmo_filter_segm_walks <- posmo_filter_segm_clean |>
 posmo_filter_segm_onlywalks <- posmo_filter_segm_walks |> 
   filter(walks == TRUE)
 
-posmo_filter_segm_nowalks <- posmo_filter_segm_walks |> 
-  filter(walks == FALSE)
-
-  tm_shape(posmo_filter_segm_onlywalks) +
+tm_shape(posmo_filter_segm_onlywalks) +
   tm_dots(col = "walks") +
   tm_basemap("Esri.WorldImagery")
+
+posmo_filter_segm_onlywalks_sry <- posmo_filter_segm_walks |> 
+  st_drop_geometry()|>
+  group_by(segment_id)|>
+  summarise(
+    walk_true = sum(walks == TRUE),
+    walk_false = sum(walks == FALSE)
+  )|>
+  mutate(
+    walk_seg = (walk_true / walk_false) > 0.9
+    ) |> 
+  select(segment_id, walk_seg)
+
+
+posmo_filter_segm_walks <- left_join(posmo_filter_segm_walks, posmo_filter_segm_onlywalks_sry, by = "segment_id")
+posmo_filter_segm_nowalks <- filter(posmo_filter_segm_walks, walk_seg == FALSE)
+posmo_filter_segm_onlywalks <- filter(posmo_filter_segm_walks, walk_seg == TRUE)
 
 ```
 
@@ -608,12 +663,12 @@ Manually assign TM to the clusters
 ```{r}
 posmo_filter_seg_kmeans4
 
-posmo_filter_seg_cluster |>
+#posmo_filter_seg_cluster |>
 #  filter(as.Date(datetime) == "2023-04-13") |>
-  filter(kmeans4 == 3) |>
-  tm_shape() +
-  tm_dots(col = "kmeans4") +
-  tm_basemap("Esri.WorldImagery")
+#  filter(kmeans4 == 3) |>
+#  tm_shape() +
+#  tm_dots(col = "kmeans4") +
+#  tm_basemap("Esri.WorldImagery")
 
 ```
 
@@ -677,8 +732,6 @@ For the bike mode, three rules are applied:
 
 ```{r}
 
-#posmo_filter_segm_clean <- left_join(posmo_filter_segm_clean, st_drop_geometry(posmo_filter_segm_sry), by = "segment_id")
-
 posmo_filter_segm_bike <- posmo_filter_segm_nowalks |> 
   mutate(
     bike = avgspeed_ms < 6.944 & maxspeed_ms <= 11.111 & seg_dist_m < 20000
@@ -705,10 +758,19 @@ For the train mode, three rules are applied:
 
 First, based on multimodal transportation network, each sequential pair of GPS points within a train segment is matched to the similar link of the train network.
 ```{r}
-#posmo_filter_segm_train <- posmo_filter_segm_nobike |> 
-#  mutate(
-#    bike = avgspeed_ms < 6.944 & maxspeed_ms <= 11.111 & seg_dist_m < 20000
-#  )
+trains_buffer <- train_routes |> 
+  st_buffer(10) |> 
+  st_union()
+
+tm_shape(trains_buffer) +
+  tm_polygons() +
+  tm_basemap("Esri.WorldImagery")
+
+
+posmo_filter_segm_train <- posmo_filter_segm_bike |> 
+  mutate(
+    train = st_within(posmo_filter_segm_bike, trains_buffer, sparse = FALSE)
+  )
 
 posmo_filter_segm_onlytrains <- posmo_filter_segm_train |> 
   filter(train == TRUE)
@@ -732,35 +794,204 @@ Three rules, therefore, are applied to identify the bus mode:
 The remaining trip segments are considered potential car mode after applying the bus mode rules.
 
 ```{r}
+bus_buffer <- bus_routes |> 
+  st_buffer(15) |> 
+  st_union()
 
+tm_shape(bus_buffer) +
+  tm_polygons() +
+  tm_basemap("Esri.WorldImagery")
+
+
+posmo_filter_segm_bus <- posmo_filter_segm_train |> 
+  mutate(
+    bus = st_within(posmo_filter_segm_train, bus_buffer, sparse = FALSE) & avgspeed_ms < 24.4444 & maxspeed_ms <= 27.7778
+  )
+
+posmo_filter_segm_onlybus <- posmo_filter_segm_bus |> 
+  filter(bus == TRUE)
+
+posmo_filter_segm_nobus <- posmo_filter_segm_bus |> 
+  filter(bus == FALSE)
+
+tm_shape(posmo_filter_segm_onlybus) +
+  tm_dots(col = "bus") +
+  tm_basemap("Esri.WorldImagery")
 ```
 
 ### 8.5 Car mode detection
 The rule applied in further identifying the car mode is that each car segment needed to follow the transportation network, and the maximum speed should not be greater than 180 km/h (Biljecki et al., 2013a). 
 
 ```{r}
+road_buffer <- roads |> 
+  st_buffer(25) |> 
+  st_union()
 
+tm_shape(road_buffer) +
+  tm_polygons() +
+  tm_basemap("Esri.WorldImagery")
+
+
+posmo_filter_segm_car <- posmo_filter_segm_bus |> 
+  mutate(
+    car = st_within(posmo_filter_segm_bus, road_buffer, sparse = FALSE) & avgspeed_ms > 4.16667 & maxspeed_ms <= 36.1111
+  )
+
+posmo_filter_segm_onlycar <- posmo_filter_segm_car |> 
+  filter(car == TRUE)
+
+posmo_filter_segm_nocar <- posmo_filter_segm_car |> 
+  filter(car == FALSE)
+
+tm_shape(posmo_filter_segm_onlycar) +
+  tm_dots(col = "car") +
+  tm_basemap("Esri.WorldImagery")
 ```
 
 
-
-**Ideas:**
-- using similarity for comparing bus routes and bus departure times
-
-st_join(join = st_is_within_distance, dist = 10)
-
-
-
-## 9. Supervised learning algorithms
+### 8.5 Implement on segment level
 
 ```{r}
-#randomForest(Species~., data=train, proximity=TRUE) print(rf)
-?randomForest
+posmo_filter_segm_mca_sry <- posmo_filter_segm_car |> 
+  st_drop_geometry()|>
+  group_by(segment_id)|>
+  summarise(
+    bike_true = sum(bike == TRUE),
+    bike_false = sum(bike == FALSE),
+    train_true = sum(train == TRUE),
+    train_false = sum(train == FALSE),
+    bus_true = sum(bus == TRUE),
+    bus_false = sum(bus == FALSE),
+    car_true = sum(car == TRUE),
+    car_false = sum(car == FALSE)
+  )|>
+  mutate(
+    bike_seg = (bike_true / bike_false) > 0.9,
+    train_seg = (train_true / train_false) > 0.9,
+    bus_seg = (bus_true / bus_false) > 0.9,
+    car_seg = (car_true / car_false) > 0.5
+    ) |> 
+  select(segment_id, bike_seg, train_seg, bus_seg, car_seg)
 
+
+posmo_filter_segm_mca <- left_join(posmo_filter_segm_car, posmo_filter_segm_mca_sry, by = "segment_id")
+
+posmo_filter_segm_mca
+
+posmo_filter_segm_mca <- posmo_filter_segm_mca |>
+  mutate(
+    tm = ifelse(bike_seg == TRUE & train_seg == FALSE & bus_seg == FALSE,
+                "Bike",
+                ifelse(bike_seg == FALSE & train_seg == TRUE & bus_seg == FALSE,
+                       "Train", 
+                       ifelse(bike_seg == FALSE & train_seg == FALSE & bus_seg == TRUE,
+                              "Bus",
+                              ifelse(bike_seg == FALSE & train_seg == FALSE & bus_seg == FALSE & car_seg == TRUE,
+                                     "Car", NA))))
+  )
+
+
+posmo_filter_segm_mca |>
+  filter(as.Date(datetime) == "2023-06-15") |>
+  tm_shape() +
+  tm_dots(col = "tm") +
+  tm_basemap("Esri.WorldImagery")
+
+```
+Good dates for Verification are 2023-05-13 (long bike track) and 2023-04-13 (ÖV and car)
+
+
+## 9. Analysis
+
+To few training data an modelling experience to properly implement random Forest algorithm
+```{r}
+#randomForest(~., data=posmo_filter_segm_multiclass, proximity=TRUE)
+```
+
+visualizations:
+```{r}
+posmo_filter_segm_mca |>
+  filter(as.Date(datetime) == "2023-06-15") |>
+  tm_shape() +
+  tm_dots(col = "tm") +
+  tm_basemap("Esri.WorldImagery")
+```
+
+Comparison of POSMO, our TM-algorithm and ground truth data:
+```{r}
+posmo_valid
+posmo
+posmo_filter_segm_mca
+
+?names
+?which.max
+?table
+
+mode
+```
+
+Resampling of posmo data
+
+Adding new rows with the resampled time stamps and linearly interpolating them using na.approx() 
+```{r}
+# Create a new df with all necessary time stamps
+
+resamp_timestamps <- seq.POSIXt(from = ceiling_date(min(posmo_filter_clean$datetime), "10 sec"),
+                                to = floor_date(max(posmo_filter_clean$datetime), "10 sec"), 
+                                by = 10)
+resamp_timestamps <- as.data.frame(resamp_timestamps)
+
+resamp_timestamps <- resamp_timestamps |> 
+  as.data.frame() |> 
+  rename(datetime = resamp_timestamps)
+
+# Combine the df with the resulting df adding rows with NA for the nessecary time stamps
+posmo_filter_resamp <- posmo_filter_clean |>
+  select(datetime, X, Y, geometry) |>
+  full_join(resamp_timestamps, by = "datetime") |>
+  arrange(datetime)
+
+n_distinct(posmo_filter_resamp$datetime)
+sum(n_distinct(posmo_filter_clean$datetime), n_distinct(resamp_timestamps$datetime))
+
+# Linearly interpolate the missing values (coordinates) & Filter to only the resampled rows
+posmo_filter_approx <- posmo_filter_resamp |>
+  st_drop_geometry()|>
+  mutate(X = na.approx(X),
+         Y = na.approx(Y)
+         ) |>
+  filter(second(datetime) %in%  c(0, 10, 20, 30, 40, 50)) |>
+  st_as_sf(coords = c("X","Y"), crs = 2056, remove = FALSE)
+
+posmo_filter_approx
+
+tm_shape(posmo_filter_approx) +
+  tm_dots()
+  tm_basemap("Esri.WorldImagery")
 
 ```
 
 
 
 **Ideas for writing:**
-- further improvement possible with elevation modeles for bike mode detection
+
+
+Reserch question:
+- Change our research questions (they said we could) to the second one being: Where do we see space for improvement with POSMOS TMD which with more time would be woth tying to implement? Support the findings with studies where possible!
+- Due to these constaints, this project does not intend to revolutionise TMD in GPS-data, but by experimenting with different apporaches from literature and brainstoming find possible paths to improve TMD of POSMO data, even if not all of them can be algorithmically implemented.
+
+
+
+Discussion:
+- further improvement possible with elevation modeled for bike mode detection
+- using spatial and temporal similarity measures instead of fixed criteria for comparing bus routes and bus departure times (create artificial bus etc. trajectories to compare to GPS trajectories). This however will be computationally demanding when using more complex similarity measures such as LDDS
+- Tweeking the inputs for kmeans, particularly the moving window size
+- Using accelerometer data from the phone to aide walking, running and bike mode detection
+- Improve outlier detection also on a trajectory level: if a trajectory has very low sinuosity (i.e. is very straight) for a certain distance and follows no features of constrained movement spaces in transportation networks (paths and roads, train tracks, etc.)
+- Due to the lage dependency on finding the correct setting: Use Mashine leaning algorithms to find the best setting for TMD such as window size, thresholds for multi criteria analysis, etc. using a large ground proofed data set for a variety of movement types (people of all ages, backgrounds, activity profiles, living and working environment, etc.)
+
+
+Method:
+- not considering ships, airplanes, gondolas, etc. Trams considerd as buses.
+- validate the TM from POSMO using the POSMO datamap online tool after downloading the unvalidated data for reference
+

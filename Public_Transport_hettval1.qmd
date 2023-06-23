@@ -1,0 +1,163 @@
+---
+title: "stops"
+format: html
+---
+
+
+
+#librarys
+
+```{r}
+
+library("readr")
+library("sf")
+library("terra")
+library("dplyr")
+library("lubridate")
+library("ggplot2")
+library("tmap")
+library("tidyr")
+library("lubridate")
+
+```
+
+#settings
+```{r}
+
+tmap_mode(mode = "view")
+
+
+
+```
+
+
+#Wädenswil
+```{r}
+gemeinden <- read_sf("gemeinden.gpkg", crs = "CH1903+ / LV95")
+
+waedi<- gemeinden |> 
+  filter(NAME=="Wädenswil") |> 
+  select("geom") 
+
+st_crs(waedi) <- "EPSG:2056"
+
+
+tm_shape(waedi)+
+  tm_polygons()+
+  tm_basemap("Esri.WorldImagery")+
+  tm_shape(stops_sf)+
+  tm_dots()
+
+
+```
+
+
+
+#Routes complete 
+```{r}
+routes <- read.csv("2023_google_transit/routes.csv", sep = ";")
+
+routes_sf <- st_as_sf(routes, coords = c("shape_pt_lon", "shape_pt_lat"), crs = 4326) |>   st_transform(2056)
+
+plot(routes_sf)
+
+routes_filter <- st_filter(routes_sf, waedi)
+
+
+tm_shape(routes_filter)+
+  tm_dots()+
+  tm_basemap("Esri.WorldImagery")
+
+#routes_filter |> 
+  #filter(shape_pt_sequence == 198) |> 
+  #tm_shape() + tm_dots() +
+  tm_shape(gen) + tm_lines()
+
+tm_shape 
+
+
+```
+
+
+#Stops complete
+
+```{r}
+stops <- read.csv("2023_google_transit/stops.csv", sep = ";")
+
+stops_sf <- st_as_sf(stops, coords = c("stop_lon", "stop_lat"), crs = 4326) |> 
+
+  st_transform(2056)
+
+stops_time <- read.csv("2023_google_transit/stop_times.txt")
+
+stops_old <- read.csv("stops_old.txt")
+
+stops_old <- subset(stops_old, select = c("stop_lon", "stop_lat", "stop_name", "stop_id"))
+
+
+stops_time_old <- read.csv("stop_times_old.txt")
+stops_time_old <- subset(stops_time_old, select = c("arrival_time", "departure_time" , "stop_id"))
+
+
+
+stops_join <- full_join(stops_old, stops_time_old, by = "stop_id" )
+ 
+stops_join <- left_join(stops_filter, stops_join, by = "stop_name")
+
+
+tm_shape(stops_sf)+
+  tm_dots()+
+  tm_basemap("Esri.WorldImagery")
+
+stops_filter <- st_filter(stops_sf, waedi)
+
+  tm_shape(waedi)+
+  tm_polygons()+
+  tm_basemap("Esri.WorldImagery")+
+  tm_shape(stops_filter)+
+  tm_dots()+
+  tm_basemap("Esri.WorldImagery")
+
+stops_join$arr<- format(as.POSIXlt(as.character(stops_join$arrival_time), format = "%H:%M:%OS", tz = "UTC"), format = "%M:%S")
+  
+
+stops_join$dep<- format(as.POSIXlt(as.character(stops_join$departure_time), format = "%H:%M:%OS", tz = "UTC"), format = "%M:%S")
+
+
+  
+
+```
+
+
+
+
+
+```{r}
+linien <- st_layers("Linien_des_offentlichen_Verkehrs_-OGD.gpkg")
+
+sbahn <- read_sf("Linien_des_offentlichen_Verkehrs_-OGD.gpkg", "ZVV_S_BAHN_LINIEN_L") 
+
+gen <- read_sf("Linien_des_offentlichen_Verkehrs_-OGD.gpkg", "ZVV_LINIEN_GEN_L")
+
+linien <- read_sf("Linien_des_offentlichen_Verkehrs_-OGD.gpkg", "ZVV_LINIEN_L")
+
+
+
+
+```
+
+
+#Buslinien
+```{r}
+
+stops_filter  
+  tm_shape(waedi)+
+  tm_polygons()+
+  tm_basemap("Esri.WorldImagery")+
+  tm_shape(stops_filter) + tm_dots()+
+  tm_shape(gen) + tm_lines()+
+  tm_shape(sbahn)+tm_lines()+ tm_basemap("Esri.WorldImagery")
+
+
+```
+
