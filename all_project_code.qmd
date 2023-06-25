@@ -1,9 +1,10 @@
 ---
 title: "Project code"
 author: "Lukas Bieri (bieriluk) & Valentin Hett (hettval1)"
-date: "23.06.2023"
+date: "25.06.2023"
 format: html
 editor: source
+df-print: paged
 ---
 
 
@@ -24,7 +25,7 @@ editor: source
 
 **Autors:** Valentin Hett (hettval1) & Lukas Bieri (bieriluk)
 
-**Date:** 23.06.2023
+**Date:** 25.06.2023
 
 
 ### 1.2 Software used
@@ -48,7 +49,7 @@ ipak <- function(pkg){
   sapply(pkg, require, character.only = TRUE)
 }
 
-packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms", "tibble", "useful", "DescTools")
+packages <- c("ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms", "tibble", "useful", "DescTools", "utils", "janitor")
 
 ipak(packages)
 ```
@@ -93,7 +94,7 @@ str(posmo)
 Sys.time()
 ```
 
-Store your data frame as a spatial data frame and transform the coordinate system from WGS84 (i.e. EPSG 4326) to CH1903+ LV95 (EPSG 2056)
+Store your data frame as a spatial data frame and transform the coordinate system from WGS84 (i.e. EPSG 4326) to CH1903+ LV95 (EPSG 2056). Also Filter to only Kt. ZH.
 ```{r}
 posmo <- st_as_sf(posmo, coords = c("lon_x","lat_y"), crs = 4326) |>
   st_transform(2056) |>
@@ -112,8 +113,10 @@ tm_shape(posmo) +
 Extract the coordinates into separate colums to use them for euclidean distance calculation:
 ```{r}
 posmo_coordinates <- st_coordinates(posmo)
-
 posmo <- cbind(posmo, posmo_coordinates)
+
+posmo_valid_coordinates <- st_coordinates(posmo_valid)
+posmo_valid <- cbind(posmo_valid, posmo_valid_coordinates)
 ```
 
 
@@ -149,7 +152,8 @@ tm_shape(train_routes) +
 st_layers("datasets/Linien_des_offentlichen_Verkehrs_-OGD.gpkg")
 bus_routes <- st_read("datasets/Linien_des_offentlichen_Verkehrs_-OGD.gpkg", layer = "ZVV_LINIEN_L")
 st_crs(bus_routes)
-bus_routes
+bus_routes <- bus_routes |>
+  st_filter(kanton_zh, .pred = st_intersects)
 
 tm_shape(bus_routes)+
   tm_lines()+
@@ -175,9 +179,16 @@ tm_shape(roads) +
 
 #### 3.2.1 For how long were the individual tracked? Are there gaps? Were all individuals tracked concurrently or sequentially?
 ```{r}
-
 head(posmo)
 tail(posmo)
+
+head(posmo_valid)
+tail(posmo_valid)
+
+class(posmo$datetime)
+class(posmo_valid$datetime)
+tz(posmo$datetime)
+tz(posmo_valid$datetime)
 ```
 
 
@@ -187,21 +198,46 @@ posmo$user_id |> unique()
 ```
 --> 1 Individuals, because for the moment we are only working with on data set (not the POSMO Pool)
 
+#### 3.2.3 List of all transport modes
+```{r}
+unique(posmo$transport_mode)
+unique(posmo_valid$transport_mode)
+
+numbers <- c(0, 1, 2, 3, 4, 5, 6, 8)
+names <- c("Unkonwn", "Walk", "Car", "Bus", "Train", "Bike", "Tram", "Other")
+transport_mode <- c(NA, "Walk", "Car", "Bus", "Train", "Bike", "Tram", "Other1")
+all_transport_modes <- data.frame(numbers, names, transport_mode)
+all_transport_modes
+
+posmo <- posmo |>
+  left_join(all_transport_modes, by = "transport_mode") |>
+  rename(tm_unval = numbers)
+
+posmo_valid <- posmo_valid |>
+  left_join(all_transport_modes, by = "transport_mode") |>
+  rename(tm_val = numbers)
+```
+
+
 ### 3.3  Filtering & Outlier detection
 
 #### 3.3.1 Filter the data for testing & checkin the method
-Choose a single day for this step (13.04.2023, because many different visited places that day) and filter your data:
+Choose a single day for this step (13.04.2023, because many different visited places that day) and filter your data. Later filter away the ends where the data sets or not the same length.
 ```{r}
-posmo_filter <- posmo  #|>
-#    filter(as.Date(datetime) == "2023-04-13")
+posmo_filter <- posmo  |>
+    filter(as.Date(datetime) < "2023-06-16")
 
-posmo_valid_filter <- posmo_valid  |>
-    filter(as.Date(datetime) == "2023-04-13")
+posmo_valid_filter <- posmo_valid |>
+    filter(as.Date(datetime) < "2023-06-16")
 
-test <- filter(posmo, hour(datetime) >= 7 & hour(datetime) <= 17)
+head(posmo_filter)
+tail(posmo_filter)
 
-hour(as_hms("17:00:00"))
+head(posmo_valid_filter)
+tail(posmo_valid_filter)
 ```
+**--> Full duration to compare: 2023-04-11 10:50:01 till 2023-06-15 22:00:00**
+
 
 ```{r}
 ggplot(posmo_filter, aes(X,Y, color = datetime)) +
@@ -209,37 +245,67 @@ ggplot(posmo_filter, aes(X,Y, color = datetime)) +
   geom_path() +
   coord_equal()
 
-
 tm_shape(posmo_filter) +
-  tm_dots()
+  tm_dots() +
+  tm_basemap("Esri.WorldImagery")
+  
+tm_shape(posmo_valid_filter) +
+  tm_dots() +
   tm_basemap("Esri.WorldImagery")
 ```
 X = E, Y = N
 
 
 #### 3.3.2 Remove deuplicate time stamps
-Calculate timelag and also remove values with the same time stamp by summarising unsing the mean.
-```{r}
 
+Remove values with the same time stamp by summarising unsing the mean.
+```{r}
 posmo_filter_clean <- posmo_filter|>
   st_drop_geometry()|>
-  select(datetime, X, Y)|>
+  select(datetime, X, Y, tm_unval)|>
   mutate(
     datetime = unclass(datetime)
     ) |>
   group_by(datetime)|>
   summarise(
     X = mean(X, na.rm = TRUE),
-    Y = mean(Y, na.rm = TRUE)
+    Y = mean(Y, na.rm = TRUE),
+    tm_unval = Mode(tm_unval, na.rm = TRUE)
   ) |>
   ungroup()|>
   mutate(
-    datetime = as.POSIXct(datetime, origin = '1970-01-01', tz = "UTC")
+    datetime = as.POSIXct(datetime, origin = '1970-01-01', tz = "UTC"),
+    tm_unval = replace_na(tm_unval, 0)
     )|>
   st_as_sf(coords = c("X","Y"), crs = 2056, remove = FALSE) 
 
 n_distinct(posmo_filter_clean$datetime)
 n_distinct(posmo_filter$datetime)
+```
+
+and the same removal of double timestamps for comparability
+```{r}
+posmo_valid_filter_clean <- posmo_valid_filter|>
+  st_drop_geometry()|>
+  select(datetime, X, Y, tm_val)|>
+  mutate(
+    datetime = unclass(datetime)
+    ) |>
+  group_by(datetime)|>
+  summarise(
+    X = mean(X, na.rm = TRUE),
+    Y = mean(Y, na.rm = TRUE),
+    tm_val = Mode(tm_val, na.rm = TRUE)
+  ) |>
+  ungroup()|>
+  mutate(
+    datetime = as.POSIXct(datetime, origin = '1970-01-01', tz = "UTC"),
+    tm_val = replace_na(tm_val, 0)
+    )|>
+  st_as_sf(coords = c("X","Y"), crs = 2056, remove = FALSE) 
+
+n_distinct(posmo_valid_filter$datetime)
+n_distinct(posmo_valid_filter_clean$datetime)
 ```
 
 
@@ -248,7 +314,6 @@ Calculate timelag to figure out a appropriate temporal window:
 ```{r}
 posmo_filter_clean <- posmo_filter_clean |>
   mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
-
 ```
 
 Look for negative timelag values and visually validate that they are corrective algorith errors, then eliminate these rows incl. NA's. 
@@ -260,13 +325,24 @@ posmo_filter_clean |>
     filter(is.na(timelag_s))
 
 tm_shape(slice(posmo_filter_clean,1261)) +
-  tm_dots()
+  tm_dots() +
   tm_basemap("Esri.WorldImagery")
   
 posmo_filter_clean <- posmo_filter_clean |>
     filter(timelag_s > 0)
 
 ```
+
+
+and the same for the validated data for comparability
+```{r}
+posmo_valid_filter_clean <- posmo_valid_filter_clean |>
+  mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
+
+posmo_valid_filter_clean <- posmo_valid_filter_clean |>
+    filter(timelag_s > 0)
+```
+
 
 
 So what does the timelag between measurement points look like:
@@ -276,7 +352,6 @@ mean(posmo_filter_clean$timelag_s, na.rm = TRUE)
 median(posmo_filter_clean$timelag_s, na.rm = TRUE)
 min(posmo_filter_clean$timelag_s, na.rm = TRUE)
 max(posmo_filter_clean$timelag_s, na.rm = TRUE)
-
 
 posmo_filter_clean|> 
   ggplot(aes(timelag_s)) +
@@ -289,7 +364,6 @@ posmo_filter_clean |>
   ggplot(aes(datetime, timelag_s)) +
   geom_point() + 
   geom_line()
-
 ```
 
 #### 3.3.4 Outlier detection and removal
@@ -313,10 +387,20 @@ posmo_filter_clean |>
     filter(speed_ms > 140)
 
 tm_shape(slice(posmo_filter_clean,1258:1260)) +
-  tm_dots()
+  tm_dots() +
   tm_basemap("Esri.WorldImagery")
 ```
 
+
+and the same for the validated data for comparability
+```{r}
+posmo_valid_filter_clean <- posmo_valid_filter_clean |> 
+  mutate(steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2)) |> 
+  mutate(speed_ms = steplength_m/timelag_s)
+
+posmo_valid_filter_clean |>
+    filter(speed_ms > 140)
+```
 
 ### 3.4  Resampling
 
@@ -335,7 +419,7 @@ resamp_timestamps <- resamp_timestamps |>
 
 # Combine the df with the resulting df adding rows with NA for the nessecary time stamps
 posmo_filter_resamp <- posmo_filter_clean |>
-  select(datetime, X, Y, geometry) |>
+  select(datetime, X, Y, tm_unval, geometry) |>
   full_join(resamp_timestamps, by = "datetime") |>
   arrange(datetime)
 
@@ -346,19 +430,51 @@ sum(n_distinct(posmo_filter_clean$datetime), n_distinct(resamp_timestamps$dateti
 posmo_filter_approx <- posmo_filter_resamp |>
   st_drop_geometry()|>
   mutate(X = na.approx(X),
-         Y = na.approx(Y)
+         Y = na.approx(Y),
+         tm_unval = na.locf(tm_unval)
          ) |>
   filter(second(datetime) %in%  c(0, 10, 20, 30, 40, 50)) |>
   st_as_sf(coords = c("X","Y"), crs = 2056, remove = FALSE)
 
 posmo_filter_approx
-
-tm_shape(posmo_filter_approx) +
-  tm_dots()
-  tm_basemap("Esri.WorldImagery")
-
 ```
 **Change resampling to 15s!**
+
+
+and the same for the validated data for comparability
+```{r}
+# Create a new df with all necessary time stamps
+
+resamp_timestamps_valid <- seq.POSIXt(from = ceiling_date(min(posmo_valid_filter_clean$datetime), "10 sec"),
+                                to = floor_date(max(posmo_valid_filter_clean$datetime), "10 sec"), 
+                                by = 10)
+resamp_timestamps_valid <- as.data.frame(resamp_timestamps)
+
+resamp_timestamps_valid <- resamp_timestamps_valid |> 
+  as.data.frame()# |> 
+#  rename(datetime = resamp_timestamps_valid)
+
+# Combine the df with the resulting df adding rows with NA for the necessary time stamps
+posmo_valid_filter_resamp <- posmo_valid_filter_clean |>
+  select(datetime, X, Y, tm_val, geometry) |>
+  full_join(resamp_timestamps_valid, by = "datetime") |>
+  arrange(datetime)
+
+n_distinct(posmo_valid_filter_resamp$datetime)
+sum(n_distinct(posmo_valid_filter_clean$datetime), n_distinct(resamp_timestamps_valid$datetime))
+
+# Linearly interpolate the missing values (coordinates) & Filter to only the resampled rows
+posmo_valid_filter_approx <- posmo_valid_filter_resamp |>
+  st_drop_geometry()|>
+  mutate(X = na.approx(X),
+         Y = na.approx(Y),
+         tm_val = na.locf(tm_val)
+         ) |>
+  filter(second(datetime) %in%  c(0, 10, 20, 30, 40, 50)) |>
+  st_as_sf(coords = c("X","Y"), crs = 2056, remove = FALSE)
+
+posmo_valid_filter_approx
+```
 
 
 ## 4. Segmentation
@@ -507,7 +623,7 @@ posmo_filter_segm_clean <- posmo_filter_segm |>
   left_join(posmo_filter_short_segm, by = "segment_id") |> 
   filter(static == FALSE) |>
   filter(short == FALSE) |>
-  select(datetime, X, Y, geometry, segment_id)
+  select(datetime, X, Y, geometry, segment_id, tm_unval)
 
 tm_shape(posmo_filter_segm_clean) +
   tm_dots(col = "segment_id") +
@@ -663,12 +779,11 @@ Manually assign TM to the clusters
 ```{r}
 posmo_filter_seg_kmeans4
 
-#posmo_filter_seg_cluster |>
-#  filter(as.Date(datetime) == "2023-04-13") |>
-#  filter(kmeans4 == 3) |>
-#  tm_shape() +
-#  tm_dots(col = "kmeans4") +
-#  tm_basemap("Esri.WorldImagery")
+posmo_filter_seg_cluster |>
+  filter(as.Date(datetime) == "2023-06-03") |>
+  tm_shape() +
+  tm_dots(col = "kmeans4", 
+          palette = "Set2")
 
 ```
 
@@ -712,9 +827,27 @@ test |>
   tm_basemap("Esri.WorldImagery")
 ```
 
+Pretty comparison table
+```{r}
+table_2 <- data.frame(posmo_filter_seg_kmeans4$centers) |>
+  mutate(
+    "Number of points" = posmo_filter_seg_kmeans4$size,
+    steplength_m = round(steplength_m, 2),
+    speed_ms = round(speed_ms, 2),
+    acc_mss = round(acc_mss, 2),
+    sinuosity = round(sinuosity, 2),
+    avgspeed_ms = round(avgspeed_ms, 2)
+  ) |>
+  rename("Steplength (m)" = steplength_m, 
+         "Speed (m/s)" = speed_ms, 
+         "Acceleration (m/s/s)" = acc_mss, 
+         "Sinuosity" = sinuosity,
+         "Avg. speed (m/s)" = avgspeed_ms
+         )
+table_2
 
-
-
+posmo_filter_seg_kmeans4$centers
+```
 
 ## 8. GIS multi-criteria process 
 
@@ -732,7 +865,7 @@ For the bike mode, three rules are applied:
 
 ```{r}
 
-posmo_filter_segm_bike <- posmo_filter_segm_nowalks |> 
+posmo_filter_segm_bike <- posmo_filter_segm_walks |> 
   mutate(
     bike = avgspeed_ms < 6.944 & maxspeed_ms <= 11.111 & seg_dist_m < 20000
   )
@@ -873,30 +1006,37 @@ posmo_filter_segm_mca_sry <- posmo_filter_segm_car |>
     ) |> 
   select(segment_id, bike_seg, train_seg, bus_seg, car_seg)
 
+posmo_filter_segm_mca_sry <- left_join(posmo_filter_segm_mca_sry, posmo_filter_segm_onlywalks_sry, by = "segment_id")
 
-posmo_filter_segm_mca <- left_join(posmo_filter_segm_car, posmo_filter_segm_mca_sry, by = "segment_id")
+posmo_filter_segm_mca <- left_join(select(posmo_filter_segm_car, -walk_seg), posmo_filter_segm_mca_sry, by = "segment_id")
 
 posmo_filter_segm_mca
 
 posmo_filter_segm_mca <- posmo_filter_segm_mca |>
   mutate(
-    tm = ifelse(bike_seg == TRUE & train_seg == FALSE & bus_seg == FALSE,
-                "Bike",
-                ifelse(bike_seg == FALSE & train_seg == TRUE & bus_seg == FALSE,
-                       "Train", 
-                       ifelse(bike_seg == FALSE & train_seg == FALSE & bus_seg == TRUE,
-                              "Bus",
-                              ifelse(bike_seg == FALSE & train_seg == FALSE & bus_seg == FALSE & car_seg == TRUE,
-                                     "Car", NA))))
+    tm_own = ifelse(walk_seg == TRUE, 1,
+              ifelse(bike_seg == TRUE & train_seg == FALSE & bus_seg == FALSE, 5,
+                ifelse(bike_seg == FALSE & train_seg == TRUE & bus_seg == FALSE, 4, 
+                  ifelse(bike_seg == FALSE & train_seg == FALSE & bus_seg == TRUE, 3,
+                    ifelse(bike_seg == FALSE & train_seg == FALSE & bus_seg == FALSE & car_seg == TRUE, 2, 0)))))
   )
+  
 
+sum(posmo_filter_segm_mca$tm_own == 0, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_own == 1, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_own == 2, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_own == 3, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_own == 4, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_own == 5, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_own == 6, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_own == 7, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_own == 8, na.rm = TRUE)
 
 posmo_filter_segm_mca |>
-  filter(as.Date(datetime) == "2023-06-15") |>
+  filter(as.Date(datetime) == "2023-05-13") |>
   tm_shape() +
-  tm_dots(col = "tm") +
+  tm_dots(col = "tm_own") +
   tm_basemap("Esri.WorldImagery")
-
 ```
 Good dates for Verification are 2023-05-13 (long bike track) and 2023-04-13 (ÖV and car)
 
@@ -908,90 +1048,144 @@ To few training data an modelling experience to properly implement random Forest
 #randomForest(~., data=posmo_filter_segm_multiclass, proximity=TRUE)
 ```
 
-visualizations:
+
+### 9.1 Join all versions of TMD
 ```{r}
-posmo_filter_segm_mca |>
-  filter(as.Date(datetime) == "2023-06-15") |>
-  tm_shape() +
-  tm_dots(col = "tm") +
-  tm_basemap("Esri.WorldImagery")
+posmo_valid_filter_sel <- posmo_valid_filter_approx |>
+  select(datetime, tm_val) |>
+  st_drop_geometry()
+
+sum(posmo_valid_filter_sel$tm_val == 6, na.rm = TRUE)
+sum(posmo_valid_filter_sel$tm_val == 3, na.rm = TRUE)
+
+posmo_valid_filter_sel$tm_val[posmo_valid_filter_sel$tm_val == 6] <- 3
+posmo_filter_segm_mca$tm_unval[posmo_filter_segm_mca$tm_unval == 6] <- 3
+
+sum(posmo_valid_filter_sel$tm_val == 6, na.rm = TRUE)
+sum(posmo_valid_filter_sel$tm_val == 3, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_unval == 6, na.rm = TRUE)
+sum(posmo_filter_segm_mca$tm_unval == 3, na.rm = TRUE)
+
+tm_compare <- posmo_filter_segm_mca |>
+  select(datetime, tm_unval, tm_own) |>
+  left_join(posmo_valid_filter_sel, by = "datetime") |>
+  mutate(
+    tm_own_correct = as.integer(as.logical(tm_own == tm_val)),
+    tm_posmo_correct = as.integer(as.logical(tm_unval == tm_val))
+  )
 ```
 
-Comparison of POSMO, our TM-algorithm and ground truth data:
+### 9.2 Compare versions of TMD
 ```{r}
-posmo_valid
-posmo
-posmo_filter_segm_mca
 
-?names
-?which.max
-?table
+sum(tm_compare$tm_posmo_correct)/nrow(tm_compare)
+sum(tm_compare$tm_own_correct)/nrow(tm_compare)
 
-mode
-```
-
-Resampling of posmo data
-
-Adding new rows with the resampled time stamps and linearly interpolating them using na.approx() 
-```{r}
-# Create a new df with all necessary time stamps
-
-resamp_timestamps <- seq.POSIXt(from = ceiling_date(min(posmo_filter_clean$datetime), "10 sec"),
-                                to = floor_date(max(posmo_filter_clean$datetime), "10 sec"), 
-                                by = 10)
-resamp_timestamps <- as.data.frame(resamp_timestamps)
-
-resamp_timestamps <- resamp_timestamps |> 
-  as.data.frame() |> 
-  rename(datetime = resamp_timestamps)
-
-# Combine the df with the resulting df adding rows with NA for the nessecary time stamps
-posmo_filter_resamp <- posmo_filter_clean |>
-  select(datetime, X, Y, geometry) |>
-  full_join(resamp_timestamps, by = "datetime") |>
-  arrange(datetime)
-
-n_distinct(posmo_filter_resamp$datetime)
-sum(n_distinct(posmo_filter_clean$datetime), n_distinct(resamp_timestamps$datetime))
-
-# Linearly interpolate the missing values (coordinates) & Filter to only the resampled rows
-posmo_filter_approx <- posmo_filter_resamp |>
+tm_compare_sry <- tm_compare |>
   st_drop_geometry()|>
-  mutate(X = na.approx(X),
-         Y = na.approx(Y)
-         ) |>
-  filter(second(datetime) %in%  c(0, 10, 20, 30, 40, 50)) |>
-  st_as_sf(coords = c("X","Y"), crs = 2056, remove = FALSE)
+  group_by(tm_val)|>
+  summarise(
+    n_points = n(),
+    posmo_correct_tot = sum(tm_posmo_correct),
+    own_correct_tot = sum(tm_own_correct)
+  ) |>
+  ungroup() |>
+  rename(numbers = tm_val) |>
+  left_join(select(all_transport_modes, -transport_mode), by = "numbers") |>
+  rename(tm_code = numbers) |>
+  head(-1) |>
+  adorn_totals("row") |>
+  mutate(
+    posmo_correct_pct = posmo_correct_tot / n_points * 100,
+    own_correct_pct = own_correct_tot / n_points * 100
+  ) |>
+  relocate(names, .after = tm_code)
 
-posmo_filter_approx
-
-tm_shape(posmo_filter_approx) +
-  tm_dots()
-  tm_basemap("Esri.WorldImagery")
+tm_compare_sry
 
 ```
 
+Pretty comparison table
+```{r}
+table_1 <- tm_compare_sry |>
+  mutate(
+    posmo_correct_pct = round(posmo_correct_pct),
+    own_correct_pct = round(own_correct_pct)
+  ) |>
+  rename("TM Code" = tm_code, 
+         "TM Name" = names, 
+         "Number of Points" = n_points, 
+         "Correct TM POSMO" = posmo_correct_tot,
+         "Correct TM New" = own_correct_tot,
+         "Accuracy rate POSMO (%)" = posmo_correct_pct,
+         "Accuracy rate New (%)" = own_correct_pct
+         )
+table_1
+```
 
 
-**Ideas for writing:**
+### 9.3 Visualizations
+
+Tracking data by TM:
+```{r}
+tm_labels <- data.frame(c(0, 1, 2, 3, 4, 5), c("Unkonwn", "Walk", "Car", "Bus & Tram", "Train", "Bike"))
+
+tm_compare_label <- tm_compare |>
+  filter(tm_val <= 5) |>
+  mutate(
+    "Transport Modes Ground Truth" = ifelse(tm_val == 0, "Unkonwn",
+                         ifelse(tm_val == 1, "Walk",
+                           ifelse(tm_val == 2, "Car",
+                             ifelse(tm_val == 3, "Bus & Tram",
+                               ifelse(tm_val == 4 , "Train",
+                                 ifelse(tm_val == 5, "Bike", 
+                                        0)))))),
+    "Transport Modes POSMO" = ifelse(tm_unval == 0, "Unkonwn",
+                         ifelse(tm_unval == 1, "Walk",
+                           ifelse(tm_unval == 2, "Car",
+                             ifelse(tm_unval == 3, "Bus & Tram",
+                               ifelse(tm_unval == 4 , "Train",
+                                 ifelse(tm_unval == 5, "Bike", 
+                                        0)))))),
+    "Transport Modes MCA" = ifelse(tm_own == 0, "Unkonwn",
+                         ifelse(tm_own == 1, "Walk",
+                           ifelse(tm_own == 2, "Car",
+                             ifelse(tm_own == 3, "Bus & Tram",
+                               ifelse(tm_own == 4 , "Train",
+                                 ifelse(tm_own == 5, "Bike", 
+                                        0))))))
+      )
+
+tm_compare_label$`Transport Modes Ground Truth` <- factor(tm_compare_label$`Transport Modes Ground Truth`, levels = c("Unkonwn", "Walk", "Car", "Bus & Tram", "Train", "Bike"), ordered = TRUE)
+tm_compare_label$`Transport Modes POSMO` <- factor(tm_compare_label$`Transport Modes POSMO`, levels = c("Unkonwn", "Walk", "Car", "Bus & Tram", "Train", "Bike"), ordered = TRUE)
+tm_compare_label$`Transport Modes MCA` <- factor(tm_compare_label$`Transport Modes MCA`, levels = c("Unkonwn", "Walk", "Car", "Bus & Tram", "Train", "Bike"), ordered = TRUE)
+
+figure_2 <- tm_compare_label |>
+  filter(as.Date(datetime) == "2023-06-03") |>
+  tm_shape() +
+  tm_dots(col = c("Transport Modes POSMO", "Transport Modes MCA", "Transport Modes Ground Truth"), 
+          palette = "Set2") + 
+  tm_facets(nrow = 2, sync = TRUE)
+figure_2
+```
+Good dates for Verification are 2023-05-13 (long bike track) and 2023-04-13 (ÖV and car) and 2023-06-03 (all TM)
 
 
-Reserch question:
-- Change our research questions (they said we could) to the second one being: Where do we see space for improvement with POSMOS TMD which with more time would be woth tying to implement? Support the findings with studies where possible!
-- Due to these constaints, this project does not intend to revolutionise TMD in GPS-data, but by experimenting with different apporaches from literature and brainstoming find possible paths to improve TMD of POSMO data, even if not all of them can be algorithmically implemented.
+Additional data used:
+```{r}
+figure_1 <- tm_shape(kanton_zh) +
+  tm_borders(col = "red",lwd = 3) +
+  tm_shape(train_routes) +
+  tm_lines(col = "green") +
+  tm_shape(roads) +
+  tm_lines(col = "black")+
+  tm_shape(bus_routes) +
+  tm_lines(col = "blue")+
+  tm_add_legend(type = "fill", 
+    labels = c("Canton Zurich", "Railway lines", "Major Roads", "Bus/Tram routes"),
+    col = c("red", "green", "black", "blue"),
+    border.lwd = 0.5,
+    title = "Data used for MCA")
 
-
-
-Discussion:
-- further improvement possible with elevation modeled for bike mode detection
-- using spatial and temporal similarity measures instead of fixed criteria for comparing bus routes and bus departure times (create artificial bus etc. trajectories to compare to GPS trajectories). This however will be computationally demanding when using more complex similarity measures such as LDDS
-- Tweeking the inputs for kmeans, particularly the moving window size
-- Using accelerometer data from the phone to aide walking, running and bike mode detection
-- Improve outlier detection also on a trajectory level: if a trajectory has very low sinuosity (i.e. is very straight) for a certain distance and follows no features of constrained movement spaces in transportation networks (paths and roads, train tracks, etc.)
-- Due to the lage dependency on finding the correct setting: Use Mashine leaning algorithms to find the best setting for TMD such as window size, thresholds for multi criteria analysis, etc. using a large ground proofed data set for a variety of movement types (people of all ages, backgrounds, activity profiles, living and working environment, etc.)
-
-
-Method:
-- not considering ships, airplanes, gondolas, etc. Trams considerd as buses.
-- validate the TM from POSMO using the POSMO datamap online tool after downloading the unvalidated data for reference
-
+figure_1
+```

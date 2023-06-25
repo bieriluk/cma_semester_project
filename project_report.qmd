@@ -3,6 +3,7 @@ title: Improved Transport Mode Detection & Public Transport Punctuality Assessme
 subtitle: A subtle subtitle
 author: Lukas Bieri (bieriluk) & Valentin Hett (hettval1)
 output: html
+df-print: paged
 ---
 
 
