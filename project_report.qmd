@@ -2,8 +2,10 @@
 title: Improved Transport Mode Detection
 subtitle: How could POSMOs Transport Mode Detection be improved further using publicly available data
 author: Lukas Bieri (bieriluk) & Valentin Hett (hettval1)
-output: html
-  code-fold: true
+date: "06/27/2023"
+format: 
+  html:
+    code-fold: true
 editor: source
 df-print: paged
 ---
@@ -66,13 +68,6 @@ Considering the constrained resources, including time and computational power, a
 The POSMO app saves tracking data in its online datamap tool, where it can be extracted. The App already assigns a transportation mode incl. train, car, bus, walking and even airplane (Genossenschaft Posmo Schweiz, n.d.).
 For this research project, only the transport mode walking (incl. running), biking, train (incl. gondolas & cable cars) and buses (incl. trams) are considered and compared. Ships and aerial vehicles were not included. To be able to compute the data and based on the limited availability of transport network data, the analysis was limited to the canton of Zurich.
 For the different TMD improvement approaches we mostly followed the method set out by (Sadeghian et al., 2022)with a focus on multi criteria analysis.
-
-The Public Transport data is sourced from Open Data Platforms and governmental GIS data bases. We used railway and boundary data from swissTLMRegio  (swisstopo, 2022a, 2022b) and bus data from the Zurich Transport Network (ZVV) (Verkehrsbetriebe Zürich VBZ, 2022). The POSMO data, is tracking data from one student in the module who provided his/her tracking data voluntarily to the class. For this tracking data set, we also have a validated data set with ground truth transport mode available. This data set was manually validated for TM by memory using the POSMO datamap online tool. The segmentation of trajectories was not changed for validation from the POSMO segmentation due to the high workload of this procedure.
-
-```{r}
-figure_1
-```
-Figure 1: Overview over the context data used for MCA (swisstopo, 2022a, 2022b; Verkehrsbetriebe Zürich VBZ, 2022)
 
 All data processing, analysis and visualization is done in R (4.2.1/2022-06-23) using RStudio (2023.06.0+421) and the packages: "ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms", "tibble", "useful", "DescTools", "utils" and "janitor". Last update of these packages was on the 23.06.2023. 
 
@@ -265,6 +260,28 @@ posmo_valid <- posmo_valid |>
   left_join(all_transport_modes, by = "transport_mode") |>
   rename(tm_val = numbers)
 ```
+
+The Public Transport data is sourced from Open Data Platforms and governmental GIS data bases. We used railway and boundary data from swissTLMRegio  (swisstopo, 2022a, 2022b) and bus data from the Zurich Transport Network (ZVV) (Verkehrsbetriebe Zürich VBZ, 2022). The POSMO data, is tracking data from one student in the module who provided his/her tracking data voluntarily to the class. For this tracking data set, we also have a validated data set with ground truth transport mode available. This data set was manually validated for TM by memory using the POSMO datamap online tool. The segmentation of trajectories was not changed for validation from the POSMO segmentation due to the high workload of this procedure.
+
+```{r}
+#Visualize the used kontext data into one figure
+figure_1 <- tm_shape(kanton_zh) +
+  tm_borders(col = "red",lwd = 3) +
+  tm_shape(train_routes) +
+  tm_lines(col = "green") +
+  tm_shape(roads) +
+  tm_lines(col = "black")+
+  tm_shape(bus_routes) +
+  tm_lines(col = "blue")+
+  tm_add_legend(type = "fill", 
+    labels = c("Canton Zurich", "Railway lines", "Major Roads", "Bus/Tram routes"),
+    col = c("red", "green", "black", "blue"),
+    border.lwd = 0.5,
+    title = "Data used for MCA")
+
+figure_1
+```
+Figure 1: Overview over the context data used for MCA (swisstopo, 2022a, 2022b; Verkehrsbetriebe Zürich VBZ, 2022)
 
 Duplicate time stamps are removed and the data is resamples with a constant 10s interval between points (incl. for the validated data for comparison) by linear interpolation for coordinated using the “zoo“-package (Zeileis et al., 2023). 
 ```{r}
@@ -766,7 +783,7 @@ posmo_filter_seg_kmeans4
 
 #Check if the Clusters are destinct enought to manually assign them a TM
 posmo_filter_seg_kmeans4
-posmo_filter_seg_cluster |>
+figure_3 <- posmo_filter_seg_cluster |>
   filter(as.Date(datetime) == "2023-06-03") |>
   tm_shape() +
   tm_dots(col = "kmeans4", 
@@ -1168,23 +1185,6 @@ figure_2 <- tm_compare_label |>
           palette = "Set2") + 
   tm_facets(nrow = 2, sync = TRUE)
 figure_2
-
-#Visualize the used kontext data into one figure
-figure_1 <- tm_shape(kanton_zh) +
-  tm_borders(col = "red",lwd = 3) +
-  tm_shape(train_routes) +
-  tm_lines(col = "green") +
-  tm_shape(roads) +
-  tm_lines(col = "black")+
-  tm_shape(bus_routes) +
-  tm_lines(col = "blue")+
-  tm_add_legend(type = "fill", 
-    labels = c("Canton Zurich", "Railway lines", "Major Roads", "Bus/Tram routes"),
-    col = c("red", "green", "black", "blue"),
-    border.lwd = 0.5,
-    title = "Data used for MCA")
-
-figure_1
 ```
 
 ## Results
@@ -1207,7 +1207,9 @@ Table 2: Clusters from K-means analysis (K= 4)
 table_2
 ```
 
-
+```{r}
+figure_3
+```
 Figure 3: Example of K-means clusters for the 3rd of June 2023 on a map
  
 Due to the abovementioned limitations, the TMD from this project could not be further optimized. Therefore, a more detailed statistical evaluation is not carried out, as we only used these results and experiences from the implementation for the discussion of possible improvement paths. For any further work, spatial statistics, correlation analysis and Bayesian accuracy assessments (Magnussen, 2009) are suggested.
@@ -1223,8 +1225,9 @@ There are multiple comparatively easy paths to improve the described multi crite
 
 The use of public transportation schedules (i.e. arrival and departure times for public transport lines) can also potentially improve the accuracy of the TMD by using them as a reference for predicting the transportation mode in multi criteria analysis, as demonstrated by (Sadeghian et al., 2022). This however largely depends on accurate segmentation to determine the correct beginning and end of a trip. POSMO also seems to struggle with this, as we have seen many segments were changing e.g. from tram to bus was not segmented (see example in Figure 4).
 
-Figure 4: Example of incorrectly segmented trajectory in the POSMO on the 7th of June (Screenshot from the 17th of June, source: https://posmo.datamap.io/posmo-project)
- 
+
+![Figure 4: Example of incorrectly segmented trajectory in the POSMO on the 7th of June (Screenshot from the 17th of June, source: https://posmo.datamap.io/posmo-project)](figure_4.png)
+
 To avoid this problem of making the criteria solely dependent on beginning and end of segments, we suggest constructing artificial trajectories for all public transport lines based on the schedule e.g. using the “traj” package with its “TrajGenerate” function (McLean & Skowron Volponi, 2018) or more complex methods for trajectory prediction from autonomous driving research (Rossi et al., 2021). The tracking data segments can be compared to these artificial public transport trajectories with spatio-temporal similarity measures and using these for classification. Longest Common Subsequence (LCSS) would be a promising candidate for this, due to its robustness to noise and focus on similar portions of trajectories (Vlachos et al., 2002).
 
 To minimise the unintended GPS data points at standstill (noise filtering), the points were segmented using the speed and the distance moved. These were determined with the help of fixed values after several trials. As this is not ideal for algorithms or machine learning, other methods should be considered. It is proposed to minimise the data points using similarity patterns or measures. This is also done in (Tao et al., 2021) and is recommended in such cases(Zhu et al., 2016).
