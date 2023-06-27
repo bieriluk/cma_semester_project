@@ -177,6 +177,12 @@ train_routes <- train_routes |>
   filter(OBJVAL != 3 & UNDERCONST == 0) |>
   st_filter(kanton_zh, .pred = st_intersects)
 
+#add train stops
+train_stops <- st_read("datasets/swissTLMRegio_Produkt_LV95.gdb", layer = "TLMRegio_Terminal")
+train_stops <- train_stops |>
+  filter(OBJVAL == 1) |>
+  st_filter(kanton_zh, .pred = st_intersects)
+
 #Visualize to verify
 tm_shape(train_routes) +
   tm_lines(col = "red") +
