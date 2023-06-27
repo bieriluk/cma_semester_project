@@ -1,46 +1,55 @@
 ---
 title: "Project code"
 author: "Lukas Bieri (bieriluk) & Valentin Hett (hettval1)"
-date: "25.06.2023"
+date: "27.06.2023"
 format: html
 editor: source
 df-print: paged
 ---
 
+## 1. Information
 
-# Improved Transport Mode Detection & Public Transport Punctuality Assessment
-
+### 1.1 Project Info
+```{r}
 ## 1. Information
 
 ### 1.1 Project Info
 
 
-**Module:** Patterns and Trends HS22
+#Module: Patterns and Trends HS22
 
-**Course:** Semester Project
+#Course: Semester Project
 
-**Lecturer:** Prof. Dr. Patrick Laube
+#Lecturer: Prof. Dr. Patrick Laube
 
-**Assistent Lecturers:** Nils Ratnaweera & Dominic Lüönd
+#Assistent Lecturers: Nils Ratnaweera & Dominic Lüönd
 
-**Autors:** Valentin Hett (hettval1) & Lukas Bieri (bieriluk)
+#Autors: Valentin Hett (hettval1) & Lukas Bieri (bieriluk)
 
-**Date:** 25.06.2023
+#Date: 27.06.2023
+
+```
 
 
 ### 1.2 Software used
+```{r}
+### 1.2 Software used
 
-**R version 4.2.1 (2022-06-23 ucrt)** -- "Funny-Looking Kid" Copyright (C) 2022 The R Foundation for Statistical Computing Platform: x86_64-w64-mingw32/x64 (64-bit)
+#R version 4.2.1 (2022-06-23 ucrt) -- "Funny-Looking Kid" Copyright (C) 2022 The R Foundation for Statistical Computing Platform: x86_64-w64-mingw32/x64 (64-bit)
 
-**RStudio 2023.06.0+421** "Mountain Hydrangea" Release (583b465ecc45e60ee9de085148cd2f9741cc5214, 2023-06-05) for windows
-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) RStudio/2023.06.0+421 Chrome/110.0.5481.208 Electron/23.3.0 Safari/537.36
+#RStudio 2023.06.0+421 "Mountain Hydrangea" Release (583b465ecc45e60ee9de085148cd2f9741cc5214, 2023-06-05) for windows Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) RStudio/2023.06.0+421 Chrome/110.0.5481.208 Electron/23.3.0 Safari/537.36
+```
 
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
 
 ## 2. Preparation
 
-```{r}
-#| output: false
-#| warning: false
+#Install (if necessary) and load all necessary packages with this function
+
 ipak <- function(pkg){
   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
   if (length(new.pkg)) 
@@ -56,23 +65,32 @@ ipak(packages)
 
 
 ```{r}
+#Set the tMap mode to "view"
 tmap_mode(mode = "view")
 ```
 
-## 3. Daten(vor)verarbeitung
+
+## 3. Preprocessing
 
 ### 3.1 Import, check and transport data
 
 #### 3.1.1 Boundries
-
 ```{r}
+## 3. Preprocessing
+
+### 3.1 Import, check and transport data
+
+#### 3.1.1 Boundries
+# Import Boundries data set
 st_layers("datasets/swissTLMRegio_BOUNDARIES_LV95.gdb")
 kanton_zh <- st_read("datasets/swissTLMRegio_BOUNDARIES_LV95.gdb", layer = "TLMRegio_KANTONSGEBIET")
 kanton_zh <- kanton_zh |>
   filter(NAME == "Zürich")
 
+#Check if the coordinate system is correctly assigned
 st_crs(kanton_zh)
 
+#Visualize to verify
 tm_shape(kanton_zh) +
   tm_polygons() +
   tm_basemap("Esri.WorldImagery")
@@ -82,39 +100,54 @@ tm_shape(kanton_zh) +
 
 #### 3.1.2 Posmo data
 ```{r}
+#### 3.1.2 Posmo data
+
+#Import raw unverified set
 posmo <- read_delim("datasets/posmo_2023-01-01T00-00-00_2023-06-16T23-59-59_unvalidated_def.csv", delim = ",")
 
+#Import the manually verified data set (in the POSMO datamap online tool)
 posmo_valid <- read_delim("datasets/posmo_2023-01-01T00-00-00_2023-06-16T23-59-59_validated_def.csv", delim = ",")
-
 ```
 
 Check if the import got the Time Zone for the POSIXct colum correct (compare with the first entry in the imported data with the raw data):
 ```{r}
+#Check if the import got the Time Zone for the POSIXct colum correct
 str(posmo)
+str(posmo_valid)
 Sys.time()
 ```
 
 Store your data frame as a spatial data frame and transform the coordinate system from WGS84 (i.e. EPSG 4326) to CH1903+ LV95 (EPSG 2056). Also Filter to only Kt. ZH.
 ```{r}
+#Store your data frame as a spatial data frame and transform the coordinate system from WGS84 (i.e. EPSG 4326) to CH1903+ LV95 (EPSG 2056) and filter it to the canton of Zurich (intersect)
 posmo <- st_as_sf(posmo, coords = c("lon_x","lat_y"), crs = 4326) |>
   st_transform(2056) |>
   st_filter(kanton_zh, .pred = st_intersects)
 
+#Same for the validated data
 posmo_valid <- st_as_sf(posmo_valid, coords = c("lon_x","lat_y"), crs = 4326) |>
   st_transform(2056) |>
   st_filter(kanton_zh, .pred = st_intersects)
 
+#Check the results in a table and by visualization
 head(posmo)
+head(posmo_valid)
+
 tm_shape(posmo) +
+  tm_dots(col = "red") +
+  tm_basemap("Esri.WorldImagery")
+tm_shape(posmo_valid) +
   tm_dots(col = "red") +
   tm_basemap("Esri.WorldImagery")
 ```
 
 Extract the coordinates into separate colums to use them for euclidean distance calculation:
 ```{r}
+#Extract the coordinates into separate colums to use them for euclidean distance calculation
 posmo_coordinates <- st_coordinates(posmo)
 posmo <- cbind(posmo, posmo_coordinates)
 
+#Same for the validated data
 posmo_valid_coordinates <- st_coordinates(posmo_valid)
 posmo_valid <- cbind(posmo_valid, posmo_valid_coordinates)
 ```
@@ -124,37 +157,49 @@ posmo_valid <- cbind(posmo_valid, posmo_valid_coordinates)
 incl. Normalspurbahn, Schmalspurbahn, Standseilbahn, Seilbahn, Gondelbahn, Sessellift, Autoverlad
 excl. Güterbahn, Museumsbahn, Bahn ausser Betrieb, Bahn im Bau
 ```{r}
+#### 3.1.3 Railway routes data
+
+#Check the layer of the gdb
 st_layers("datasets/swissTLMRegio_Produkt_LV95.gdb")
+
+#Import the Railway Layer
 train_routes <- st_read("datasets/swissTLMRegio_Produkt_LV95.gdb", layer = "TLMRegio_Railway")
+
+#Check if the coordinate system is correctly assigned
 st_crs(train_routes)
 
+#Filter for "Normalspurbahn", "Schmalspurbahn", "Standseilbahn", "Seilbahn", "Gondelbahn", "Sessellift" and "Autoverlad", exclude "Güterbahn", "Museumsbahn", "Bahn ausser Betrieb", "Bahn im Bau" and limit it to the canton of zurich (intercest)
 train_routes <- train_routes |>
   filter(OBJVAL != 3 & UNDERCONST == 0) |>
   st_filter(kanton_zh, .pred = st_intersects)
 
-train_stops <- st_read("datasets/swissTLMRegio_Produkt_LV95.gdb", layer = "TLMRegio_Terminal")
-
-train_stops <- train_stops |>
-  filter(OBJVAL == 1) |>
-  st_filter(kanton_zh, .pred = st_intersects)
-
+#Visualize to verify
 tm_shape(train_routes) +
   tm_lines(col = "red") +
   tm_shape(train_stops) + 
   tm_dots(col = "red") +
   tm_basemap("Esri.WorldImagery")
-  
 ```
 
 
 #### 3.1.4 Bus & tram data
 ```{r}
+#### 3.1.4 Bus & tram data
+
+#Check the layer of the gpkg
 st_layers("datasets/Linien_des_offentlichen_Verkehrs_-OGD.gpkg")
+
+#Import the layer with all the public transport lines (filterd at download to exclude railway "S-Bahn")
 bus_routes <- st_read("datasets/Linien_des_offentlichen_Verkehrs_-OGD.gpkg", layer = "ZVV_LINIEN_L")
+
+#Check if the coordinate system is correctly assigned
 st_crs(bus_routes)
+
+#Filter to the canton of zurich (intersect). This does not exclude segments that start in the canton and leave it, but that doesn't seem to be an issue for public transport as the canton boder is arbitrarily set system boundry
 bus_routes <- bus_routes |>
   st_filter(kanton_zh, .pred = st_intersects)
 
+#Visualize to verify
 tm_shape(bus_routes)+
   tm_lines()+
   tm_basemap("Esri.WorldImagery")
@@ -163,15 +208,20 @@ tm_shape(bus_routes)+
 
 #### 3.1.5 Road network data
 ```{r}
+#### 3.1.5 Road network data
+
+#Check the layer of the gdb
 st_layers("datasets/swissTLMRegio_Produkt_LV95.gdb")
+
+#Import the layer with all major roads and filter it for the canton of zurich
 roads <- st_read("datasets/swissTLMRegio_Produkt_LV95.gdb", layer = "TLMRegio_Road")
 roads <- roads |>
   st_filter(kanton_zh, .pred = st_intersects)
 
+#Visualize to verify
 tm_shape(roads) +
   tm_lines(col = "red") +
   tm_basemap("Esri.WorldImagery")
-
 ```
 
 
@@ -179,9 +229,13 @@ tm_shape(roads) +
 
 #### 3.2.1 For how long were the individual tracked? Are there gaps? Were all individuals tracked concurrently or sequentially?
 ```{r}
+### 3.2  Getting an overview & EDA
+
+#### 3.2.1 For how long were the individual tracked? Are there gaps? Were all individuals tracked concurrently or sequentially?
+
+#Check the posmo data by inspecting it in detail
 head(posmo)
 tail(posmo)
-
 head(posmo_valid)
 tail(posmo_valid)
 
@@ -194,12 +248,18 @@ tz(posmo_valid$datetime)
 
 #### 3.2.2 How many individuals were tracked 
 ```{r}
+#### 3.2.2 How many individuals were tracked 
+
+# Make sure all data from one individual 
 posmo$user_id |> unique()
 ```
 --> 1 Individuals, because for the moment we are only working with on data set (not the POSMO Pool)
 
 #### 3.2.3 List of all transport modes
 ```{r}
+#### 3.2.3 List of all transport modes
+
+#Create a list of all transport modes in the POSMO data incl. numerical codes fotr the TMs
 unique(posmo$transport_mode)
 unique(posmo_valid$transport_mode)
 
@@ -209,6 +269,7 @@ transport_mode <- c(NA, "Walk", "Car", "Bus", "Train", "Bike", "Tram", "Other1")
 all_transport_modes <- data.frame(numbers, names, transport_mode)
 all_transport_modes
 
+#Join the Transport Modes with the raw data to have the numerical codes for TM in the data frames
 posmo <- posmo |>
   left_join(all_transport_modes, by = "transport_mode") |>
   rename(tm_unval = numbers)
@@ -224,6 +285,11 @@ posmo_valid <- posmo_valid |>
 #### 3.3.1 Filter the data for testing & checkin the method
 Choose a single day for this step (13.04.2023, because many different visited places that day) and filter your data. Later filter away the ends where the data sets or not the same length.
 ```{r}
+### 3.3  Filtering & Outlier detection
+
+#### 3.3.1 Filter the data for testing & checkin the method
+
+#For writing and checking the algorithm, choose and filter for 1 day where many different places where visited using different TMs. Later this Filter is removed, and the data is filters so both data sets are the same lenth.
 posmo_filter <- posmo  |>
     filter(as.Date(datetime) < "2023-06-16")
 
@@ -232,14 +298,17 @@ posmo_valid_filter <- posmo_valid |>
 
 head(posmo_filter)
 tail(posmo_filter)
-
 head(posmo_valid_filter)
 tail(posmo_valid_filter)
+
+#--> Full duration to compare: 2023-04-11 10:50:01 till 2023-06-15 22:00:00
 ```
 **--> Full duration to compare: 2023-04-11 10:50:01 till 2023-06-15 22:00:00**
 
 
 ```{r}
+#visualize the different days for EDA
+
 ggplot(posmo_filter, aes(X,Y, color = datetime)) +
   geom_point() +
   geom_path() +
@@ -260,6 +329,9 @@ X = E, Y = N
 
 Remove values with the same time stamp by summarising unsing the mean.
 ```{r}
+#### 3.3.2 Remove deuplicate time stamps
+
+#Remove values with the same time stamp by summarising unsing the mean. For the tm, the most common TM amoung the same timestamp is used (Mode)
 posmo_filter_clean <- posmo_filter|>
   st_drop_geometry()|>
   select(datetime, X, Y, tm_unval)|>
@@ -285,6 +357,7 @@ n_distinct(posmo_filter$datetime)
 
 and the same removal of double timestamps for comparability
 ```{r}
+#The same removal of double timestamps is done with the validated data for comparability
 posmo_valid_filter_clean <- posmo_valid_filter|>
   st_drop_geometry()|>
   select(datetime, X, Y, tm_val)|>
@@ -312,15 +385,18 @@ n_distinct(posmo_valid_filter_clean$datetime)
 #### 3.3.3 Temporal sampling interval cleaning
 Calculate timelag to figure out a appropriate temporal window:
 ```{r}
+#### 3.3.3 Temporal sampling interval cleaning
+
+# Calculate timelag
 posmo_filter_clean <- posmo_filter_clean |>
   mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
 ```
 
 Look for negative timelag values and visually validate that they are corrective algorith errors, then eliminate these rows incl. NA's. 
 ```{r}
+# Look for negative timelag values and visually validate that they are corrective algorith errors, then eliminate these rows incl. NA's
 posmo_filter_clean |>
     filter(timelag_s < 0)
-
 posmo_filter_clean |>
     filter(is.na(timelag_s))
 
@@ -330,12 +406,12 @@ tm_shape(slice(posmo_filter_clean,1261)) +
   
 posmo_filter_clean <- posmo_filter_clean |>
     filter(timelag_s > 0)
-
 ```
 
 
 and the same for the validated data for comparability
 ```{r}
+# and the same for the validated data for comparability
 posmo_valid_filter_clean <- posmo_valid_filter_clean |>
   mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
 
@@ -347,6 +423,7 @@ posmo_valid_filter_clean <- posmo_valid_filter_clean |>
 
 So what does the timelag between measurement points look like:
 ```{r}
+#So what does the timelag between measurement points look like
 tail(posmo_filter_clean)
 mean(posmo_filter_clean$timelag_s, na.rm = TRUE)
 median(posmo_filter_clean$timelag_s, na.rm = TRUE)
@@ -369,6 +446,9 @@ posmo_filter_clean |>
 #### 3.3.4 Outlier detection and removal
 Calculate further features for outlier detection
 ```{r}
+#### 3.3.4 Outlier detection and removal
+
+#Calculate further features for outlier detection. X = E, Y = N
 posmo_filter_clean <- posmo_filter_clean |> 
   mutate(steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2)) |> 
   mutate(speed_ms = steplength_m/timelag_s)
@@ -378,36 +458,40 @@ X = E, Y = N
 
 Identify and remove outliers
 ```{r}
+#Identify and remove outliers
 mean(posmo_filter_clean$speed_ms, na.rm = TRUE)
 median(posmo_filter_clean$speed_ms, na.rm = TRUE)
 min(posmo_filter_clean$speed_ms, na.rm = TRUE)
 max(posmo_filter_clean$speed_ms, na.rm = TRUE)
 
-posmo_filter_clean |>
-    filter(speed_ms > 140)
-
 tm_shape(slice(posmo_filter_clean,1258:1260)) +
   tm_dots() +
   tm_basemap("Esri.WorldImagery")
+
+#Speed bellow 220 km/h
+posmo_filter_clean |>
+    filter(speed_ms > 61.1111)
 ```
 
 
 and the same for the validated data for comparability
 ```{r}
+#and the same for the validated data for comparability
 posmo_valid_filter_clean <- posmo_valid_filter_clean |> 
   mutate(steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2)) |> 
   mutate(speed_ms = steplength_m/timelag_s)
 
 posmo_valid_filter_clean |>
-    filter(speed_ms > 140)
+    filter(speed_ms > 61.1111)
 ```
 
 ### 3.4  Resampling
 
 Adding new rows with the resampled time stamps and linearly interpolating them using na.approx() 
 ```{r}
-# Create a new df with all necessary time stamps
+### 3.4  Resampling
 
+# Create a new df with all necessary time stamps
 resamp_timestamps <- seq.POSIXt(from = ceiling_date(min(posmo_filter_clean$datetime), "10 sec"),
                                 to = floor_date(max(posmo_filter_clean$datetime), "10 sec"), 
                                 by = 10)
@@ -417,7 +501,7 @@ resamp_timestamps <- resamp_timestamps |>
   as.data.frame() |> 
   rename(datetime = resamp_timestamps)
 
-# Combine the df with the resulting df adding rows with NA for the nessecary time stamps
+# Combine the df with the resulting df adding rows with NA for the necessary time stamps
 posmo_filter_resamp <- posmo_filter_clean |>
   select(datetime, X, Y, tm_unval, geometry) |>
   full_join(resamp_timestamps, by = "datetime") |>
@@ -426,7 +510,7 @@ posmo_filter_resamp <- posmo_filter_clean |>
 n_distinct(posmo_filter_resamp$datetime)
 sum(n_distinct(posmo_filter_clean$datetime), n_distinct(resamp_timestamps$datetime))
 
-# Linearly interpolate the missing values (coordinates) & Filter to only the resampled rows
+# Linearly interpolate the missing values (coordinates) & Filter to only the resampled rows / For TM the last TM previous TM in the trajectory is used (na.locf)
 posmo_filter_approx <- posmo_filter_resamp |>
   st_drop_geometry()|>
   mutate(X = na.approx(X),
@@ -444,7 +528,6 @@ posmo_filter_approx
 and the same for the validated data for comparability
 ```{r}
 # Create a new df with all necessary time stamps
-
 resamp_timestamps_valid <- seq.POSIXt(from = ceiling_date(min(posmo_valid_filter_clean$datetime), "10 sec"),
                                 to = floor_date(max(posmo_valid_filter_clean$datetime), "10 sec"), 
                                 by = 10)
@@ -463,7 +546,7 @@ posmo_valid_filter_resamp <- posmo_valid_filter_clean |>
 n_distinct(posmo_valid_filter_resamp$datetime)
 sum(n_distinct(posmo_valid_filter_clean$datetime), n_distinct(resamp_timestamps_valid$datetime))
 
-# Linearly interpolate the missing values (coordinates) & Filter to only the resampled rows
+# Linearly interpolate the missing values (coordinates) & Filter to only the resampled rows / For TM the last TM previous TM in the trajectory is used (na.locf)
 posmo_valid_filter_approx <- posmo_valid_filter_resamp |>
   st_drop_geometry()|>
   mutate(X = na.approx(X),
@@ -481,14 +564,16 @@ posmo_valid_filter_approx
 
 ### 4.1 Get an overview
 ```{r}
+## 4. Segmentation
+
+### 4.1 Get an overview
+
+#Get an overview of the data before segmentation
 ggplot(posmo_filter_approx, aes(X,Y, color = datetime)) +
   geom_point() +
   geom_path() +
   coord_equal()
-```
-X = E, Y = N
 
-```{r}
 posmo_filter_approx|> 
   head(50) |> 
   ggplot(aes(datetime, 1)) +
@@ -498,24 +583,30 @@ posmo_filter_approx|>
 ### 4.2 (a) Specify a temporal windows v for in which to measure Euclidean distances
 Calculate timelag to figure out a appropriate temporal window:
 ```{r}
+### 4.2 (a) Specify a temporal windows v for in which to measure Euclidean distances
+
+#Calculate timelag to figure out a appropriate temporal window
 posmo_filter_approx <- posmo_filter_approx|>
   mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)))
 ```
 
 So what does the timelag between measurement points look like:
 ```{r}
+#So what does the timelag between measurement points look like
 tail(posmo_filter_approx)
 mean(posmo_filter_approx$timelag_s, na.rm = TRUE)
 median(posmo_filter_approx$timelag_s, na.rm = TRUE)
 min(posmo_filter_approx$timelag_s, na.rm = TRUE)
 max(posmo_filter_approx$timelag_s, na.rm = TRUE)
-
 ```
 
 For this exercise we try to use the data as is and try it with a window of 6 steps and 6 steps forward and backward in the data. This is v = 2min, because the timelag is 10s.
 
 ### 4.3 (b) Measure the distance from every point to every other point within this temporal window v
 ```{r}
+### 4.3 (b) Measure the distance from every point to every other point within this temporal window v
+
+#Measure the euclid. distance to 100s and 200s forward and backwards (the temporal window beeing 400s)
 posmo_filter_approx <- posmo_filter_approx |> 
   mutate(
     n_plus10 = sqrt((lead(X,10) - X)^2 + (lead(Y,10) - Y)^2),
@@ -526,10 +617,11 @@ posmo_filter_approx <- posmo_filter_approx |>
     speed_ms = steplength_m/timelag_s
   )
 ```
-Segmentation: temporal window v = 200s, Filtering: 60s
+Segmentation: temporal window v = 400s, Filtering: 60s
 
 
 ```{r}
+#Calculate the mean steplenth between these points from this temporal window
 posmo_filter_approx <- posmo_filter_approx |> 
   rowwise() |> 
   mutate(
@@ -543,9 +635,14 @@ Careful, you need rowwise() for the mutate() function to caclulate mean() for ev
 
 We need to determine the appropriate threshold where the points are stationary. It helps to visualize the data:
 ```{r}
+### 4.4 (c) Remove “static points”
+
+#Visualize the data in a histogram to see if the mean steplength is appropriate for stationary points and to determine an appropriate distance threshold
 ggplot(posmo_filter_approx, aes(stepMean)) +
   geom_histogram(binwidth = 10) +
   geom_vline(xintercept = median(posmo_filter$stepMean, na.rm = TRUE))
+
+#To find a good threshold, I tried different distances which I would realistically travel when not being stationary --> d = 100m
 ```
 
 These are points where the average distance is less than a given threshold or the min speed
@@ -553,6 +650,7 @@ These are points where the average distance is less than a given threshold or th
 To find a good threshold, I tried different distances which I would realistically travel when not being stationary. ave.distance d =100m
 A trip (Segment) may be conducted with different transportation modes, and can, therefore, be divided into segments where each segment indicate a certain transport mode. For instance, a trip can start with a car and end with a bus. First, we identify GPS tracking stops that are longer than a specific threshold (30s). A stop is considered when consecutive points in an interval of above 30 s do not have a speed higher than 2 km/h. The stops are where the transportation mode might have changed and subsegments might be formed.
 ```{r}
+#Set points to static if within the temporal window v = 400s they move on average (of 4 points) less then d = 100m and the is less then 2km/h for all point within min. 30s
 posmo_filter_segm <- posmo_filter_approx |>
     ungroup() |>
     mutate(
@@ -562,6 +660,9 @@ posmo_filter_segm <- posmo_filter_approx |>
 
 ### 4.5 Visualize stops
 ```{r}
+### 4.5 Visualize stops
+
+#Visualize the stops to check if they line up with ground truth
 ggplot(posmo_filter_segm, aes(X,Y)) +
   geom_path() +
   geom_point(aes(color = static)) +
@@ -570,13 +671,15 @@ ggplot(posmo_filter_segm, aes(X,Y)) +
 tm_shape(posmo_filter_segm) +
   tm_dots(col = "static") +
   tm_basemap("Esri.WorldImagery")
-
 ```
 Moving 10 in approx. 300sec being the threshold and no more than 2km/h within 30s for being stationary seems to line up well with the reality when visualizing it.
 
 ### 4.6 Segment-based analysis (segmentation at stationary points)
 Create function for segmentation at the stationary points:
 ```{r}
+### 4.6 Segment-based analysis (segmentation at stationary points)
+
+#Create function for segmentation at the stationary points
 rle_id <- function(vec) {
     x <- rle(vec)$lengths
     as.factor(rep(seq_along(x), times = x))
@@ -585,6 +688,7 @@ rle_id <- function(vec) {
 
 Run the function on the data:
 ```{r}
+# and run the function on the data:
 posmo_filter_segm <- posmo_filter_segm |>
     mutate(segment_id = rle_id(static))
 
@@ -593,6 +697,9 @@ head(posmo_filter_segm)
 
 ### 4.7 Visualize segmented trajectories
 ```{r}
+### 4.7 Visualize segmented trajectories
+
+#Visualize the segmented trajectories
 ggplot(posmo_filter_segm, aes(X,Y)) +
   geom_path() +
   geom_point(aes(color = segment_id)) +
@@ -601,12 +708,15 @@ ggplot(posmo_filter_segm, aes(X,Y)) +
 tm_shape(posmo_filter_segm) +
   tm_dots(col = "segment_id") +
   tm_basemap("Esri.WorldImagery")
+
+# Seems to line up well with ground truth for that day and the trips I took. If I would want to improve the segmentation, I would have to compare the details with reality and maybe smoothen out the differences in timelags.
 ```
 
 Seems to line up well with ground truth for that day and the trips I took. If I would want to improve the segmentation, I would have to compare the details with reality and maybe smoothen out the differences in timelags.
 
 Remove segments with a duration of less than 60s and static points
 ```{r}
+#Remove short segments with a duration of less than 60s and static points
 posmo_filter_short_segm <- posmo_filter_segm |> 
   group_by(segment_id)|>
   summarise(
@@ -625,19 +735,25 @@ posmo_filter_segm_clean <- posmo_filter_segm |>
   filter(short == FALSE) |>
   select(datetime, X, Y, geometry, segment_id, tm_unval)
 
+#Visualize to check
 tm_shape(posmo_filter_segm_clean) +
   tm_dots(col = "segment_id") +
   tm_basemap("Esri.WorldImagery")
 
 unique(posmo_filter_segm_clean$segment_id)
 ```
-**Offene Frage: Warum werden im Code der Exercise die "static points" nicht entfernt? So richtig wie ich das hier gemacht habe?**
+
 
 
 ## 5. Feature extraction
 
 ### 5.1 Feature extraction on the raw point data
 ```{r}
+## 5. Feature extraction
+
+### 5.1 Feature extraction on the raw point data
+
+# Feature extraction on the raw point data
 posmo_filter_segm_clean <- posmo_filter_segm_clean |> 
   mutate(timelag_s = as.numeric(difftime(lead(datetime), datetime)),
          steplength_m = sqrt((X-lead(X,1))^2 + (Y-lead(Y,1))^2),
@@ -650,19 +766,15 @@ posmo_filter_segm_clean <- posmo_filter_segm_clean |>
          ) |> 
   rowid_to_column(var = "id") |>
   drop_na() 
-  
-#To add in future if appropriate:
-#,
-#        bearing_from = atan2((cos(lat)*sin(lead(lat)) - sin(lat)*cos(lead(lat))* cos(long - lead(long))), (cos(lead(lat))* sin(long - lead(long)))),
-#         bearing_geosp = bearing(st_coordinates(st_transform(posmo_filter_segm_clean, 4326)), lead(st_coordinates(st_transform(posmo_filter_segm_clean, 4326)),1)),
-
 ```
-**Wird Bearing hier korrekt berechnet? Was ist der Unterschied zwischen Azimut, Bearing, Direction, turning angles und heading? Was wäre hier am angebrachtesten**
+
 
 ### 5.2 Feature extraction & summary by segment
 Therefore, features such as average speed, average acceleration, maximum and minimum speed, acceleration during each segment, segment distance, direction, and duration, are calculated for each segment. 
 ```{r}
- 
+### 5.2 Feature extraction & summary by segment
+
+# Feature extraction summarized on a segment level
 posmo_filter_segm_sry <- posmo_filter_segm_clean |> 
   group_by(segment_id)|>
   summarise(
@@ -675,17 +787,13 @@ posmo_filter_segm_sry <- posmo_filter_segm_clean |>
     seg_dist_m = sum(steplength_m, na.rm = TRUE),
     seg_time_s = sum(timelag_s, na.rm = TRUE)
   )
-
-#posmo_filter_segm_startend <- posmo_filter_segm_clean |> 
-#  group_by(segment_id)|>
-#seg_dir = c(st_azimuth(head(st_geometry(posmo_filter_segm_clean),-1),
-#                            head(lead(st_geometry(posmo_filter_segm_clean),1),-1)),NA) #starting point azi to end point
 ```
 **Direction anpassen aus azi zwischen Startpunkt und Endpunkt pro Segment**
 
 
 And calculate sinuosity (for random walk) using a for loop:
 ```{r}
+#And calculate sinuosity (for random walk) using a for loop
 iter <- unique(posmo_filter_segm_clean$segment_id)
 iter_i <- seq_along(iter)
 sin <- numeric(length = length(iter))
@@ -706,13 +814,10 @@ for (seg_i in iter_i){
 
 posmo_filter_segm_sry$sinuosity <- sin
 
-
-# nächstes mal besser mit purrr
-# apply, lappy, sapply, etc. auch möglich aber "schlecht" geschrieben
-
+# next time use purrr
+# Also in the future, directed walk should be used but this would require to extract starting and endpoints of trajectories (an I ran out of time)
 ```
 **Siuosity anpassen auf directed walk with a starting and an end point**
-
 
 
 ## 6. Preliminary multi criteria analysis to eliminate walking segments
@@ -724,21 +829,25 @@ However, walking can easily be identified in the GPS-tracking data based on thre
 3. The third condition is that each subsequent point’s maximum speed should not be greater than 12 km/h (Gong et al., 2012b; Stopher et al., 2008). All selected walk segments are checked 
 manually in GIS multi-criteria process because, it is difficult to differentiate between various modes in traffic and the traffic pattern for these modes were rather similar (walk, car, bus). After identification of the walk transport mode, those segments are removed from the dataset. 
 ```{r}
+## 6. Preliminary multi criteria analysis to eliminate walking segments
 
+#Add the segment-specific features back into the point data
 posmo_filter_segm_clean <- left_join(posmo_filter_segm_clean, st_drop_geometry(posmo_filter_segm_sry), by = "segment_id")
 
+#Label point as walks if: (1) segment’s average speed must not exceed 6 km/h and (2)	maximum speed of all points in the segment must be below 12 km/h
 posmo_filter_segm_walks <- posmo_filter_segm_clean |> 
   mutate(
     walks = seg_time_s > 60 & avgspeed_ms <= 1.66666 & maxspeed_ms < 3.33333
   )
 
+#Visualize only walks to check the results
 posmo_filter_segm_onlywalks <- posmo_filter_segm_walks |> 
   filter(walks == TRUE)
-
 tm_shape(posmo_filter_segm_onlywalks) +
   tm_dots(col = "walks") +
   tm_basemap("Esri.WorldImagery")
 
+#Summarize to label whole segments als walking segments if 90% of points within a segment are classified as “walking”
 posmo_filter_segm_onlywalks_sry <- posmo_filter_segm_walks |> 
   st_drop_geometry()|>
   group_by(segment_id)|>
@@ -751,7 +860,7 @@ posmo_filter_segm_onlywalks_sry <- posmo_filter_segm_walks |>
     ) |> 
   select(segment_id, walk_seg)
 
-
+#Add the summarised segment label back into point data
 posmo_filter_segm_walks <- left_join(posmo_filter_segm_walks, posmo_filter_segm_onlywalks_sry, by = "segment_id")
 posmo_filter_segm_nowalks <- filter(posmo_filter_segm_walks, walk_seg == FALSE)
 posmo_filter_segm_onlywalks <- filter(posmo_filter_segm_walks, walk_seg == TRUE)
@@ -762,33 +871,35 @@ posmo_filter_segm_onlywalks <- filter(posmo_filter_segm_walks, walk_seg == TRUE)
 ## 7. Unsupervised algorithm using k-means clustering
 
 **For improving k-means clustering add moving window features for speed, steplength and accelaration!**
-**And improve outlies removal for the cluster with 130km/h average speed**
-
 
 ```{r}
+## 7. Unsupervised algorithm using k-means clustering
+
+#Run kmeans clustering on the point data without walks with 4 Clusters (train, car, bike, bus/tram)
 posmo_filter_seg_kmeans4 <- posmo_filter_segm_nowalks |> 
   st_drop_geometry() |> 
   select(steplength_m, speed_ms, acc_mss, sinuosity, avgspeed_ms) |> 
   data.matrix() |> 
   kmeans(4)
 
+#Check the clusters
 posmo_filter_seg_kmeans4
 ```
 
 Manually assign TM to the clusters
 ```{r}
+#Check if the Clusters are destinct enought to manually assign them a TM
 posmo_filter_seg_kmeans4
-
 posmo_filter_seg_cluster |>
   filter(as.Date(datetime) == "2023-06-03") |>
   tm_shape() +
   tm_dots(col = "kmeans4", 
           palette = "Set2")
-
 ```
 
 Add cluster number to data frame (later with manually assigned label)
 ```{r}
+#Add cluster number to data frame
 posmo_filter_seg_cluster <- posmo_filter_segm_nowalks |> 
   mutate(
     kmeans4 = posmo_filter_seg_kmeans4$cluster
@@ -799,13 +910,13 @@ posmo_filter_seg_cluster |>
   tm_shape() +
   tm_dots(col = "kmeans4") +
   tm_basemap("Esri.WorldImagery")
-
 ```
 Good dates for Verification are 2023-05-13 (long bike track) and 2023-04-13 (ÖV and car)
 
 
 Test for non-multi-clusterd segments:
 ```{r}
+#Test for non-multi-clusterd segments from the kmeans clusterin
 test <- posmo_filter_seg_cluster |> 
   group_by(segment_id)|>
   summarise(
@@ -825,10 +936,7 @@ test |>
   tm_shape() +
   tm_dots(col = "segment_id") +
   tm_basemap("Esri.WorldImagery")
-```
 
-Pretty comparison table
-```{r}
 table_2 <- data.frame(posmo_filter_seg_kmeans4$centers) |>
   mutate(
     "Number of points" = posmo_filter_seg_kmeans4$size,
@@ -847,43 +955,37 @@ table_2 <- data.frame(posmo_filter_seg_kmeans4$centers) |>
 table_2
 
 posmo_filter_seg_kmeans4$centers
+
+#--> only non-multi classified segments are previously undetected walking segments. There seems to be a issue of scale, the kmeans should be run on a moving window or the sampling rate needs to change. Alternatively a threshoild could be set. However, since the Clusters cannot be easly assigned a TM anyway, this would need much more tweaking than we have time for.
 ```
 
 ## 8. GIS multi-criteria process 
 
-### 8.1 Preparation
-```{r}
-
-```
-
-
-### 8.2 Bike mode detection
-For the bike mode, three rules are applied:
-1. First, the average speed of a trip segment is assumed below 25 km/h. 
-2. Second, the maximum speed of the segment should not be greater than 40 km/h. 
-3. Third, the total distance in a segment should be below 20 km. 
+### 8.1 Bike mode detection
 
 ```{r}
+## 8. GIS multi-criteria process 
 
+### 8.1 Bike mode detection
+
+# Label point as bike if: (1) segment’s average speed must be below 25km/h, (2) maximum speed of all points in the segment must not exceed 40km/h and (3)	the total distance traveled in a segment must be below 20km
 posmo_filter_segm_bike <- posmo_filter_segm_walks |> 
   mutate(
     bike = avgspeed_ms < 6.944 & maxspeed_ms <= 11.111 & seg_dist_m < 20000
   )
 
+#Visualize only bike to check the results
 posmo_filter_segm_onlybike <- posmo_filter_segm_bike |> 
   filter(bike == TRUE)
-
 posmo_filter_segm_nobike <- posmo_filter_segm_bike |> 
   filter(bike == FALSE)
-
   tm_shape(posmo_filter_segm_onlybike) +
   tm_dots(col = "bike") +
   tm_basemap("Esri.WorldImagery")
-
 ```
 
 
-### 8.3 Train mode detection
+### 8.2 Train mode detection
 For the train mode, three rules are applied:
 1. The railway network, and the train stations are collected and used for detecting train mode.
 2. Second, the distance from each point of the trip segment to the nearest railway or commuter rail link should be less than 10 m. 
@@ -891,34 +993,36 @@ For the train mode, three rules are applied:
 
 First, based on multimodal transportation network, each sequential pair of GPS points within a train segment is matched to the similar link of the train network.
 ```{r}
+### 8.2 Train mode detection
+
+#create a buffer of 10m around the train routes from swissTLMRegio railway lines
 trains_buffer <- train_routes |> 
   st_buffer(10) |> 
   st_union()
 
+#Visualize to check
 tm_shape(trains_buffer) +
   tm_polygons() +
   tm_basemap("Esri.WorldImagery")
 
-
+# Label point as train if: (1) the points must be within 10m of a railway line (based on swissTLMRegio railway lines)
 posmo_filter_segm_train <- posmo_filter_segm_bike |> 
   mutate(
     train = st_within(posmo_filter_segm_bike, trains_buffer, sparse = FALSE)
   )
 
+#Visualize only train to check the results
 posmo_filter_segm_onlytrains <- posmo_filter_segm_train |> 
   filter(train == TRUE)
-
 posmo_filter_segm_notrains <- posmo_filter_segm_train |> 
   filter(train == FALSE)
-
   tm_shape(posmo_filter_segm_onlytrains) +
   tm_dots(col = "train") +
   tm_basemap("Esri.WorldImagery")
 ```
 
 
-
-### 8.4 Bus mode detection
+### 8.3 Bus mode detection
 Three rules, therefore, are applied to identify the bus mode:
 1. First, each segment’s positional recording needs to be close to bus routes with unique features, such as bus stops and lanes. 
 2. Second, the average speed of 88 km/h is considered (Gong et al., 2012b), while the maximum speed of a segment should be 100 km/h based on the traffic rules. 
@@ -927,55 +1031,60 @@ Three rules, therefore, are applied to identify the bus mode:
 The remaining trip segments are considered potential car mode after applying the bus mode rules.
 
 ```{r}
+### 8.3 Bus mode detection
+
+#Create a buffer of 15m around the bus and tram routes from ZVV
 bus_buffer <- bus_routes |> 
   st_buffer(15) |> 
   st_union()
 
+#Visualize to check
 tm_shape(bus_buffer) +
   tm_polygons() +
   tm_basemap("Esri.WorldImagery")
 
-
+# Label point as bus if: (1) the points must be within 15m of a bus or tram line (based on ZVV public transport lines excl. trains), (2)	segment’s average speed must be below 88km/h and (3)	maximum speed of all points in the segment must not exceed 100km/h
 posmo_filter_segm_bus <- posmo_filter_segm_train |> 
   mutate(
     bus = st_within(posmo_filter_segm_train, bus_buffer, sparse = FALSE) & avgspeed_ms < 24.4444 & maxspeed_ms <= 27.7778
   )
 
+#Visualize only bus to check the results
 posmo_filter_segm_onlybus <- posmo_filter_segm_bus |> 
   filter(bus == TRUE)
-
 posmo_filter_segm_nobus <- posmo_filter_segm_bus |> 
   filter(bus == FALSE)
-
 tm_shape(posmo_filter_segm_onlybus) +
   tm_dots(col = "bus") +
   tm_basemap("Esri.WorldImagery")
 ```
 
-### 8.5 Car mode detection
+### 8.4 Car mode detection
 The rule applied in further identifying the car mode is that each car segment needed to follow the transportation network, and the maximum speed should not be greater than 180 km/h (Biljecki et al., 2013a). 
-
 ```{r}
+### 8.4 Car mode detection
+
+#create a buffer of 25m around the main roads from swissTLMRegio road lines
 road_buffer <- roads |> 
   st_buffer(25) |> 
   st_union()
 
+#Visualize to check
 tm_shape(road_buffer) +
   tm_polygons() +
   tm_basemap("Esri.WorldImagery")
 
-
+# Label point as car if: (1)	the points must be within 25m of a main road (based on swissTLMRegio roads), (2)	segment’s average speed must be higher than 15km/h and (3)	maximum speed of all points in the segment must not exceed 130km/h
 posmo_filter_segm_car <- posmo_filter_segm_bus |> 
   mutate(
     car = st_within(posmo_filter_segm_bus, road_buffer, sparse = FALSE) & avgspeed_ms > 4.16667 & maxspeed_ms <= 36.1111
   )
 
+#Visualize only bus to check the results
 posmo_filter_segm_onlycar <- posmo_filter_segm_car |> 
   filter(car == TRUE)
-
 posmo_filter_segm_nocar <- posmo_filter_segm_car |> 
   filter(car == FALSE)
-
 tm_shape(posmo_filter_segm_onlycar) +
   tm_dots(col = "car") +
   tm_basemap("Esri.WorldImagery")
@@ -985,6 +1094,10 @@ tm_shape(posmo_filter_segm_onlycar) +
 ### 8.5 Implement on segment level
 
 ```{r}
+### 8.5 Implement on segment level
+
+#Implement all of this on a segment level an label segments as follows: if more than 90% of points within segments were classified as belonging to bike, bus or train, the segment is classified as such. Where this is true for multiple transport modes, it is classified as unknown. As the swissTLMRegio data set only includes main roads, only more than 50% of points need to be assigned the car mode for the segment to be designated a car segment. If a segment is both classified as bus and car acc. to the criteria, the segment is assigned the bus mode.
+
 posmo_filter_segm_mca_sry <- posmo_filter_segm_car |> 
   st_drop_geometry()|>
   group_by(segment_id)|>
@@ -1006,12 +1119,12 @@ posmo_filter_segm_mca_sry <- posmo_filter_segm_car |>
     ) |> 
   select(segment_id, bike_seg, train_seg, bus_seg, car_seg)
 
+#Add walking segment labels into the summary and add the segment labels back into the point data set
 posmo_filter_segm_mca_sry <- left_join(posmo_filter_segm_mca_sry, posmo_filter_segm_onlywalks_sry, by = "segment_id")
-
 posmo_filter_segm_mca <- left_join(select(posmo_filter_segm_car, -walk_seg), posmo_filter_segm_mca_sry, by = "segment_id")
-
 posmo_filter_segm_mca
 
+#Label the segments based on the critera above
 posmo_filter_segm_mca <- posmo_filter_segm_mca |>
   mutate(
     tm_own = ifelse(walk_seg == TRUE, 1,
@@ -1021,7 +1134,7 @@ posmo_filter_segm_mca <- posmo_filter_segm_mca |>
                     ifelse(bike_seg == FALSE & train_seg == FALSE & bus_seg == FALSE & car_seg == TRUE, 2, 0)))))
   )
   
-
+#Check the results. Good dates for Verification are 2023-05-13 (long bike track) and 2023-04-13 (ÖV and car)
 sum(posmo_filter_segm_mca$tm_own == 0, na.rm = TRUE)
 sum(posmo_filter_segm_mca$tm_own == 1, na.rm = TRUE)
 sum(posmo_filter_segm_mca$tm_own == 2, na.rm = TRUE)
@@ -1044,17 +1157,21 @@ Good dates for Verification are 2023-05-13 (long bike track) and 2023-04-13 (ÖV
 ## 9. Analysis
 
 To few training data an modelling experience to properly implement random Forest algorithm
-```{r}
-#randomForest(~., data=posmo_filter_segm_multiclass, proximity=TRUE)
-```
-
 
 ### 9.1 Join all versions of TMD
 ```{r}
+## 9. Analysis
+
+#To few training data an modelling experience to properly implement random Forest algorithm
+
+### 9.1 Join all versions of TMD
+
+#Join all Versions of TMD into one data set
 posmo_valid_filter_sel <- posmo_valid_filter_approx |>
   select(datetime, tm_val) |>
   st_drop_geometry()
 
+#Change tram (6) in the posmo and validated data set to bus (3), because in our MCA this is not differentiated & make sure it's changed
 sum(posmo_valid_filter_sel$tm_val == 6, na.rm = TRUE)
 sum(posmo_valid_filter_sel$tm_val == 3, na.rm = TRUE)
 
@@ -1066,6 +1183,7 @@ sum(posmo_valid_filter_sel$tm_val == 3, na.rm = TRUE)
 sum(posmo_filter_segm_mca$tm_unval == 6, na.rm = TRUE)
 sum(posmo_filter_segm_mca$tm_unval == 3, na.rm = TRUE)
 
+#calculate accuracy per row for POSMOs TMD und our TMD compared to the validated data set
 tm_compare <- posmo_filter_segm_mca |>
   select(datetime, tm_unval, tm_own) |>
   left_join(posmo_valid_filter_sel, by = "datetime") |>
@@ -1077,10 +1195,13 @@ tm_compare <- posmo_filter_segm_mca |>
 
 ### 9.2 Compare versions of TMD
 ```{r}
+### 9.2 Compare versions of TMD
 
+#Calculate accuracy overall
 sum(tm_compare$tm_posmo_correct)/nrow(tm_compare)
 sum(tm_compare$tm_own_correct)/nrow(tm_compare)
 
+#Calculate accuracy by TM and summaries everything
 tm_compare_sry <- tm_compare |>
   st_drop_geometry()|>
   group_by(tm_val)|>
@@ -1102,11 +1223,11 @@ tm_compare_sry <- tm_compare |>
   relocate(names, .after = tm_code)
 
 tm_compare_sry
-
 ```
 
 Pretty comparison table
 ```{r}
+#Put accuracy into a nice comparison table
 table_1 <- tm_compare_sry |>
   mutate(
     posmo_correct_pct = round(posmo_correct_pct),
@@ -1128,8 +1249,12 @@ table_1
 
 Tracking data by TM:
 ```{r}
-tm_labels <- data.frame(c(0, 1, 2, 3, 4, 5), c("Unkonwn", "Walk", "Car", "Bus & Tram", "Train", "Bike"))
+### 9.3 Visualizations
 
+#Visualize the tracking data with the different TMDs as a comparison
+
+#Add easily readable labels
+tm_labels <- data.frame(c(0, 1, 2, 3, 4, 5), c("Unkonwn", "Walk", "Car", "Bus & Tram", "Train", "Bike"))
 tm_compare_label <- tm_compare |>
   filter(tm_val <= 5) |>
   mutate(
@@ -1160,6 +1285,7 @@ tm_compare_label$`Transport Modes Ground Truth` <- factor(tm_compare_label$`Tran
 tm_compare_label$`Transport Modes POSMO` <- factor(tm_compare_label$`Transport Modes POSMO`, levels = c("Unkonwn", "Walk", "Car", "Bus & Tram", "Train", "Bike"), ordered = TRUE)
 tm_compare_label$`Transport Modes MCA` <- factor(tm_compare_label$`Transport Modes MCA`, levels = c("Unkonwn", "Walk", "Car", "Bus & Tram", "Train", "Bike"), ordered = TRUE)
 
+#Visualize in a facetted tmap figure
 figure_2 <- tm_compare_label |>
   filter(as.Date(datetime) == "2023-06-03") |>
   tm_shape() +
@@ -1173,6 +1299,7 @@ Good dates for Verification are 2023-05-13 (long bike track) and 2023-04-13 (ÖV
 
 Additional data used:
 ```{r}
+#Visualize the used kontext data into one figure
 figure_1 <- tm_shape(kanton_zh) +
   tm_borders(col = "red",lwd = 3) +
   tm_shape(train_routes) +
