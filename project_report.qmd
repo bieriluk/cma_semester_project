@@ -7,8 +7,13 @@ format:
   html:
     code-fold: true
     code-tools: true
+    code-summary: "Show the code"
 editor: source
 df-print: paged
+execute:
+  warning: false
+  message: false
+lang: en
 ---
 
 
@@ -19,11 +24,7 @@ Computational Movement Analysis is a widely researched field that aims to analys
 
 ## Introduction
 
-```{r label='intro'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ## 1. Information
 
 ### 1.1 Project Info
@@ -39,6 +40,8 @@ Computational Movement Analysis is a widely researched field that aims to analys
 #Autors: Valentin Hett (hettval1) & Lukas Bieri (bieriluk)
 
 #Date: 30.06.2023
+
+#Info: Most visualizations have been commented out due buffer overflow, with the expection of the figues in this report.
 ```
 
 Computational Movement Analysis is a widely researched field that uses algorithms and visual techniques to analyze and validate trajectory data to detect relationships, patterns and outliers in movement. However, current visualization systems predominantly target multilevel applications and macro-level results. A key component of mobility data processing is map matching, which involves matching GPS points to corresponding road network links to create accurate vehicle trajectories (Cai et al., 2018). GPS tracking is becoming more and more important in Movement Analysis. Platforms like Google Maps and other portals uses GPS to track routes, locations and other records. One major limitation of GPS however, is that it only can record positions and cannot provide context or semantics (Van der Spek et al., 2009). Even apps with support functions, where people are asked to fill in a movement protocol, this data is often incomplete due to laziness or forgotten memories (Sadeghian et al., 2022).
@@ -46,16 +49,13 @@ Computational Movement Analysis is a widely researched field that uses algorithm
 The tracking app POSMO is a mobility data platform for capturing and managing all types of traffic and analyzing and visualizing how people use space. Students at ZHAW in the module “patterns and trends in environmental data” tracked their movement for several month using POSMO and analyzed their data using Computational Movement Analysis in R. These assignments relate primarily to the semester project, which involves spatial data analysis. POSMO has already implemented algorithms to determines the transport modes (TM) for recorded trajectories and reproduces them as routes. Like any GPS recording, there is noise and variability, which can lead to incorrect conclusions. Accurate Transport Mode Detection (TMD) is necessary for many movement analysis tasks, for example, for health assesments from running or cycling, various applications use GPS recordings. Accurate TMD can also be used to improve public transport planning or to compute the most efficient and fuel-saving routes by car. The introduction of context maps into a system can already cause an improvement. There are many different approaches to TMD to be found in literature review. (Sadeghian et al., 2022) showed that accurate TMD was possible using a combination of unsupervised and supervised leaning algorithms with a spatial multi criteria analysis.
 
 For this project, we set out to answer the following research questions:
-* Can Transport Mode Detection (TMD) for the POSMO tracking data be improved using (a) the stepwise procedure described in (Sadeghian et al., 2022) and with (b) public transport data?
-* Where do we see potential for improvement with POSMOS TMD from our improvement trials and literature?
+
+1. Can Transport Mode Detection (TMD) for the POSMO tracking data be improved using (a) the stepwise procedure described in (Sadeghian et al., 2022) and with (b) public transport data?
+2. Where do we see potential for improvement with POSMOS TMD from our improvement trials and literature?
 
 Considering the constrained resources, including time and computational power, available for this semester project, the primary goal is not to completely revolutionize transportation mode detection (TMD) using GPS data. Instead, the project goals are to explore different approaches from the existing literature by implementing them to the best of our abilities and from this experience brainstorm potential ways to improve TMD from POSMO data. Additionally, it is assumed that not all these approaches can be implemented fully in the form of algorithms within the framework of this project.
 
-```{r label='software'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ### 1.2 Software used
 
 #R version 4.2.1 (2022-06-23 ucrt) -- "Funny-Looking Kid" Copyright (C) 2022 The R Foundation for Statistical Computing Platform: x86_64-w64-mingw32/x64 (64-bit)
@@ -72,11 +72,7 @@ For the different TMD improvement approaches we mostly followed the method set o
 
 All data processing, analysis and visualization is done in R (4.2.1/2022-06-23) using RStudio (2023.06.0+421) and the packages: "ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms", "tibble", "useful", "DescTools", "utils" and "janitor". Last update of these packages was on the 23.06.2023. 
 
-```{r label='packages'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 # Install (if necessary) and load all necessary packages with this function
 
 ipak <- function(pkg){
@@ -96,11 +92,7 @@ tmap_mode(mode = "view")
 ```
 
 All necessary data sets are loaded into R, reprojected (where necessary) and filtered. An exploratory data analysis (EDA) is done for the POSMO data to determine the appropriate settings for data cleaning and outlier removal. 
-```{r label='prepro'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ## 3. Preprocessing
 
 ### 3.1 Import, check and transport data
@@ -270,7 +262,10 @@ posmo_valid <- posmo_valid |>
 
 The Public Transport data is sourced from Open Data Platforms and governmental GIS data bases. We used railway and boundary data from swissTLMRegio  (swisstopo, 2022a, 2022b) and bus data from the Zurich Transport Network (ZVV) (Verkehrsbetriebe Zürich VBZ, 2022). The POSMO data, is tracking data from one student in the module who provided his/her tracking data voluntarily to the class. For this tracking data set, we also have a validated data set with ground truth transport mode available. This data set was manually validated for TM by memory using the POSMO datamap online tool. The segmentation of trajectories was not changed for validation from the POSMO segmentation due to the high workload of this procedure.
 
-```{r label='figure_1'}
+```{r}
+#| label: figure_1
+#| fig-cap: "Overview over the context data used for MCA (swisstopo, 2022a, 2022b; Verkehrsbetriebe Zürich VBZ, 2022)"
+
 #Visualize the used kontext data into one figure
 figure_1 <- tm_shape(kanton_zh) +
   tm_borders(col = "red",lwd = 3) +
@@ -288,14 +283,9 @@ figure_1 <- tm_shape(kanton_zh) +
 
 figure_1
 ```
-Figure 1: Overview over the context data used for MCA (swisstopo, 2022a, 2022b; Verkehrsbetriebe Zürich VBZ, 2022)
 
 Duplicate time stamps are removed and the data is resamples with a constant 10s interval between points (incl. for the validated data for comparison) by linear interpolation for coordinated using the “zoo“-package (Zeileis et al., 2023). 
-```{r label='resamp'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ### 3.3  Filtering & Outlier detection
 
 #### 3.3.1 Filter the data for testing & checkin the method
@@ -410,17 +400,17 @@ median(posmo_filter_clean$timelag_s, na.rm = TRUE)
 min(posmo_filter_clean$timelag_s, na.rm = TRUE)
 max(posmo_filter_clean$timelag_s, na.rm = TRUE)
 
-posmo_filter_clean|> 
-  ggplot(aes(timelag_s)) +
-  geom_histogram(binwidth = 1) +
-  lims(x = c(0, 20000)) +
-  scale_y_log10() +
-  scale_x_log10()
+# posmo_filter_clean|> 
+#   ggplot(aes(timelag_s)) +
+#   geom_histogram(binwidth = 1) +
+#   lims(x = c(0, 20000)) +
+#   scale_y_log10() +
+#   scale_x_log10()
 
-posmo_filter_clean |> 
-  ggplot(aes(datetime, timelag_s)) +
-  geom_point() + 
-  geom_line()
+# posmo_filter_clean |> 
+#   ggplot(aes(datetime, timelag_s)) +
+#   geom_point() + 
+#   geom_line()
 
 #### 3.3.4 Outlier detection and removal
 
@@ -519,11 +509,7 @@ posmo_valid_filter_approx
 
 The movement data is then segmented by stops (non-movement periods) in the data using a combination of methods in (Laube & Purves, 2011)and (Sadeghian et al., 2022). Features for segmentation (timelag, steplenth, speed) are extracted and static points are defined as no more than an average movement of d = 100m in a moving window of v = 400s with 4 points averaged and a speed not exceeding 2km/h within a window of 30s. These thresholds where chosen based on plotting the segmented data and checking the results against the ground truth data set. Static points and short segments (<60s) are then removed from the data set.
 
-```{r label='segment'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ## 4. Segmentation
 
 ### 4.1 Get an overview
@@ -534,10 +520,10 @@ The movement data is then segmented by stops (non-movement periods) in the data 
 #   geom_path() +
 #   coord_equal()
 
-posmo_filter_approx|> 
-  head(50) |> 
-  ggplot(aes(datetime, 1)) +
-  geom_point()
+# posmo_filter_approx|> 
+#   head(50) |> 
+#   ggplot(aes(datetime, 1)) +
+#   geom_point()
 
 ### 4.2 (a) Specify a temporal windows v for in which to measure Euclidean distances
 
@@ -576,9 +562,9 @@ posmo_filter_approx <- posmo_filter_approx |>
 ### 4.4 (c) Remove “static points”
 
 #Visualize the data in a histogram to see if the mean steplength is appropriate for stationary points and to determine an appropriate distance threshold
-ggplot(posmo_filter_approx, aes(stepMean)) +
-  geom_histogram(binwidth = 10) +
-  geom_vline(xintercept = median(posmo_filter$stepMean, na.rm = TRUE))
+# ggplot(posmo_filter_approx, aes(stepMean)) +
+#   geom_histogram(binwidth = 10) +
+#   geom_vline(xintercept = median(posmo_filter$stepMean, na.rm = TRUE))
 
 #To find a good threshold, I tried different distances which I would realistically travel when not being stationary --> d = 100m
 
@@ -658,11 +644,7 @@ unique(posmo_filter_segm_clean$segment_id)
 
 After segmentation, further features are extracted from the trajectory, these are speed, acceleration, azimuth and sinuosity. They are also summarized by segment (minimum, maximum and mean) and rejoined with the full data set.
 
-```{r label='features'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ## 5. Feature extraction
 
 ### 5.1 Feature extraction on the raw point data
@@ -727,11 +709,7 @@ From (Sadeghian et al., 2022) and our own validated data comparison we found, th
 2.	maximum speed of all points in the segment must be below 12 km/h
 3.	if 90% of points within a segment are classified as “walking”, the full segment is assigned the walking mode
 
-```{r label='walking'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ## 6. Preliminary multi criteria analysis to eliminate walking segments
 
 #Add the segment-specific features back into the point data
@@ -771,11 +749,7 @@ posmo_filter_segm_onlywalks <- filter(posmo_filter_segm_walks, walk_seg == TRUE)
 
 For the next step in (Sadeghian et al., 2022) methodology, we used an unsupervised algorithm (k-means clustering) to cluster the full data set (excl. walking segments) into 4 clusters (i.e. bus/tram, train, bike and car) based on the aforementioned extracted features. As these clusters did no correspond well enough with validated TM, this step was later discarded for TMD.
 
-```{r label='kmeans'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ## 7. Unsupervised algorithm using k-means clustering
 
 #Run kmeans clustering on the point data without walks with 4 Clusters (train, car, bike, bus/tram)
@@ -859,11 +833,7 @@ For bike mode:
 2.	maximum speed of all points in the segment must not exceed 40km/h
 3.	the total distance traveled in a segment must be below 20km
 
-```{r label='bike'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ## 8. GIS multi-criteria process 
 
 ### 8.1 Bike mode detection
@@ -888,11 +858,7 @@ posmo_filter_segm_bike <- posmo_filter_segm_walks |>
 For train mode:
 1.	the points must be within 10m of a railway line (based on swissTLMRegio railway lines)
 
-```{r label='train'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ### 8.2 Train mode detection
 
 #create a buffer of 10m around the train routes from swissTLMRegio railway lines
@@ -927,11 +893,7 @@ For bus mode:
 2.	segment’s average speed must be below 88km/h
 3.	maximum speed of all points in the segment must not exceed 100km/h
 
-```{r label='bus'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ### 8.3 Bus mode detection
 
 #Create a buffer of 15m around the bus and tram routes from ZVV
@@ -968,11 +930,7 @@ For car mode:
 2.	segment’s average speed must be higher than 15km/h
 3.	maximum speed of all points in the segment must not exceed 130km/h
 
-```{r label='car'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ### 8.4 Car mode detection
 
 #create a buffer of 25m around the main roads from swissTLMRegio road lines
@@ -1004,11 +962,7 @@ posmo_filter_segm_nocar <- posmo_filter_segm_car |>
 
 As the swissTLMRegio data set only includes main roads, only more than 50% of points need to be assigned the car mode for the segment to be designated a car segment. If a segment is both classified as bus and car acc. to the criteria, the segment is assigned the bus mode.
 
-```{r label='mca'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ### 8.5 Implement on segment level
 
 #Implement all of this on a segment level an label segments as follows: if more than 90% of points within segments were classified as belonging to bike, bus or train, the segment is classified as such. Where this is true for multiple transport modes, it is classified as unknown. As the swissTLMRegio data set only includes main roads, only more than 50% of points need to be assigned the car mode for the segment to be designated a car segment. If a segment is both classified as bus and car acc. to the criteria, the segment is assigned the bus mode.
@@ -1070,11 +1024,7 @@ sum(posmo_filter_segm_mca$tm_own == 8, na.rm = TRUE)
 The third step in the Sadeghian et al. (2022) stepwise procedure is a supervised learning algorithm. The Random Forest supervised learning algorithm could however not be implemented in this project, due to a lack of exactly segmented training data and lack of modelling experience with machine learning on our part.
 The results of this TMD are then compared to both the validated TM and the POSMO assigned TM.
 
-```{r label='analysis'}
-#| echo: false
-#| warning: false
-#| message: false
-
+```{r results = 'hide'}
 ## 9. Analysis
 
 #To few training data an modelling experience to properly implement random Forest algorithm
@@ -1203,27 +1153,35 @@ figure_2 <- tm_compare_label |>
 
 The multi criteria analysis (MCA), which ended up being the only implemented algorithm in the stepwise procedure by (Sadeghian et al., 2022), was 45% accurate in assigning TM when compared to the manually validated ground truth data. 
 
-```{r label='figure_2'}
+```{r}
+#| label: figure_2
+#| fig-cap: "Figure 2: Comparison of POSMO TM and our own MCA TM (top) and the ground truth TM (bottom) for the 3rd of June 2023 on a map"
 figure_2
 ```
-Figure 2: Comparison of POSMO TM and our own MCA TM (top) and the ground truth TM (bottom) for the 3rd of June 2023 on a map
- 
+
 The TMD as specified in this project it is overall less accurate than to the POSMO-integrated TMD when compared to ground truth, i.e. the validated data, with 45% vs. 60%. 
 
-Table 1: Confusion matrix of transport mode detection and accuracy rates for POSMO TMD vs. described GIS multi-criteria process
- 
+```{r}
+#| label: zable_1
+#| tbl-cap: "Table 1: Confusion matrix of transport mode detection and accuracy rates for POSMO TMD vs. described GIS multi-criteria process"
+table_1
+```
+
 Kmeans clustering as implemented on the raw data excl. walking segments directly did not yield clearly assigned segments. The clusters cannot be intuitively attributed to the transport modes and the only non-multiclassified clusters (all points the same cluster) when compared to the validated TM are short walking segments that where not assigned by the multi criteria analysis.
 
-Table 2: Clusters from K-means analysis (K= 4)
-```{r label='table_2'}
+Table 2: 
+```{r}
+#| label: table_2
+#| tbl-cap: "Table 2: Clusters from K-means analysis (K= 4)"
 table_2
 ```
 
-```{r label='figure_3'}
+```{r}
+#| label: figure_3
+#| fig-cap: "Figure 3: Example of K-means clusters for the 3rd of June 2023 on a map"
 figure_3
 ```
-Figure 3: Example of K-means clusters for the 3rd of June 2023 on a map
- 
+
 Due to the abovementioned limitations, the TMD from this project could not be further optimized. Therefore, a more detailed statistical evaluation is not carried out, as we only used these results and experiences from the implementation for the discussion of possible improvement paths. For any further work, spatial statistics, correlation analysis and Bayesian accuracy assessments (Magnussen, 2009) are suggested.
 
 
@@ -1237,6 +1195,7 @@ There are multiple comparatively easy paths to improve the described multi crite
 
 The use of public transportation schedules (i.e. arrival and departure times for public transport lines) can also potentially improve the accuracy of the TMD by using them as a reference for predicting the transportation mode in multi criteria analysis, as demonstrated by (Sadeghian et al., 2022). This however largely depends on accurate segmentation to determine the correct beginning and end of a trip. POSMO also seems to struggle with this, as we have seen many segments were changing e.g. from tram to bus was not segmented (see example in Figure 4).
 
+![Figure 4: Example of incorrectly segmented trajectory in the POSMO on the 7th of June (Screenshot from the 17th of June, source: https://posmo.datamap.io/posmo-project)](figure_4.png)
 
 To avoid this problem of making the criteria solely dependent on beginning and end of segments, we suggest constructing artificial trajectories for all public transport lines based on the schedule e.g. using the “traj” package with its “TrajGenerate” function (McLean & Skowron Volponi, 2018) or more complex methods for trajectory prediction from autonomous driving research (Rossi et al., 2021). The tracking data segments can be compared to these artificial public transport trajectories with spatio-temporal similarity measures and using these for classification. Longest Common Subsequence (LCSS) would be a promising candidate for this, due to its robustness to noise and focus on similar portions of trajectories (Vlachos et al., 2002).
 
@@ -1253,31 +1212,54 @@ An improvement for the app could also be the inclusion of different sensors of t
 
 ### Data
 POSMO Project GPS tracking data (2023), CSV-File, data of one person between 2023-04-11 10:50:01 and 2023-06-15 22:00:00, validated and unvalidated version, https://posmo.datamap.io/posmo-project (downloaded on 2023-06-17), Metadata: 
+
 swissTLMRegio.gdb (2022). GDB-File, Feature Class Railway and “KANTONSGEBIET”, https://www.swisstopo.admin.ch/de/geodata/landscape/tlmregio.html (downloaded on 2023-06-17), Metadata: (swisstopo, 2022a, 2022b)
+
 Linien_des_offentlichen_Verkehrs_-OGD (2023), GPKG-Datei (Geopackage), tram and bus lines ZVV, http://maps.zh.ch/?topic=ZvvLinienZH (downloaded on 2023-06-17), Metadata: (Verkehrsbetriebe Zürich VBZ, 2022)
 
 ### Literature
 Allahbakhshi, H., Conrow, L., Naimi, B., & Weibel, R. (2020). Using Accelerometer and GPS Data for Real-Life Physical Activity Type Detection. Sensors, 20(3), Article 3. https://doi.org/10.3390/s20030588
+
 Bachir, D., Khodabandelou, G., Gauthier, V., El Yacoubi, M., & Puchinger, J. (2019). Inferring dynamic origin-destination flows by transport mode using mobile phone data. Transportation Research Part C: Emerging Technologies, 101, 254–275. https://doi.org/10.1016/j.trc.2019.02.013
+
 Bayat, A., Pomplun, M., & Tran, D. A. (2014). A Study on Human Activity Recognition Using Accelerometer Data from Smartphones. Procedia Computer Science, 34, 450–457. https://doi.org/10.1016/j.procs.2014.07.009
+
 Cai, L., Zhou, Y., Liang, Y., & He, J. (2018). Research and Application of GPS Trajectory Data Visualization. Annals of Data Science, 5(1), 43–57. https://doi.org/10.1007/s40745-017-0132-1
+
 Genossenschaft Posmo Schweiz. (n.d.). Posmo—Datengenossenschaft für nachhaltige Mobilität—Datamap. Retrieved 27 June 2023, from https://posmo.datamap.io/posmo-project
+
 Giri, S., Brondeel, R., El Aarbaoui, T., & Chaix, B. (2022). Application of machine learning to predict transport modes from GPS, accelerometer, and heart rate data. International Journal of Health Geographics, 21(1), 19. https://doi.org/10.1186/s12942-022-00319-y
+
 Google. (2022, July 18). K-Means Advantages and Disadvantages | Machine Learning. Google for Developers. https://developers.google.com/machine-learning/clustering/algorithm/advantages-disadvantages
+
 Javed, A. R., Sarwar, M. U., Khan, S., Iwendi, C., Mittal, M., & Kumar, N. (2020). Analyzing the Effectiveness and Contribution of Each Axis of Tri-Axial Accelerometer Sensor for Accurate Activity Recognition. Sensors (Basel, Switzerland), 20(8), 2216. https://doi.org/10.3390/s20082216
+
 Laube, P., & Purves, R. S. (2011). How fast is a cow? Cross-Scale Analysis of Movement Data. Transactions in GIS, 15(3), 401–418. https://doi.org/10.1111/j.1467-9671.2011.01256.x
+
 Magnussen, S. (2009). A Bayesian approach to classification accuracy inference. Forestry: An International Journal of Forest Research, 82(2), 211–226. https://doi.org/10.1093/forestry/cpp001
+
 McLean, D. J., & Skowron Volponi, M. A. (2018). trajr: An R package for characterisation of animal trajectories. Ethology, 124(6), 440–448. https://doi.org/10.1111/eth.12739
+
 Rossi, L., Ajmar, A., Paolanti, M., & Pierdicca, R. (2021). Vehicle trajectory prediction and generation using LSTM models and GANs. PLOS ONE, 16(7), e0253868. https://doi.org/10.1371/journal.pone.0253868
+
 Sadeghian, P., Håkansson, J., & Zhao, X. (2021). Review and evaluation of methods in transport mode detection based on GPS tracking data. Journal of Traffic and Transportation Engineering (English Edition), 8(4), 467–482. https://doi.org/10.1016/j.jtte.2021.04.004
+
 Sadeghian, P., Zhao, X., Golshan, A., & Håkansson, J. (2022). A stepwise methodology for transport mode detection in GPS tracking data. Travel Behaviour and Society, 26, 159–167. https://doi.org/10.1016/j.tbs.2021.10.004
+
 swisstopo. (2022a). SwissTLMRegio Boundaries—Produktinformation—Administrative Grenzen der Schweiz und des nahen Auslands (TLMRegio_BOUND d 01/2022). Bundesamt für Landestopografie.
+
 swisstopo. (2022b). SwissTLMRegio—Produktinformation—Das kleinmassstäbliche digitale Landschaftsmodell der Schweiz (swissTLMRegio d 10/2022). Bundesamt für Landestopografie.
+
 Tao, Y., Both, A., Silveira, R. I., Buchin, K., Sijben, S., Purves, R. S., Laube, P., Peng, D., Toohey, K., & Duckham, M. (2021). A comparative analysis of trajectory similarity measures. GIScience & Remote Sensing, 58(5), 643–669. https://doi.org/10.1080/15481603.2021.1908927
+
 Van der Spek, S., Van Schaick, J., De Bois, P., & De Haan, R. (2009). Sensing Human Activity: GPS Tracking. Sensors, 9(4), Article 4. https://doi.org/10.3390/s90403033
+
 Verkehrsbetriebe Zürich VBZ. (2022). Produktblatt Geodatensatz—Linien des öffentlichen Verkehrs—GeoLion: Geodatenkatalog / Geometadaten (No. 108). Kanton Zürich - Geographisches Informationssystem GIS-ZH. http://maps.zh.ch/?topic=ZvvLinienZH
+
 Vlachos, M., Kollios, G., & Gunopulos, D. (2002). Discovering similar multidimensional trajectories. Proceedings 18th International Conference on Data Engineering, 673–684. https://doi.org/10.1109/ICDE.2002.994784
+
 Wan, S., Qi, L., Xu, X., Tong, C., & Gu, Z. (2020). Deep Learning Models for Real-time Human Activity Recognition with Smartphones. Mobile Networks and Applications, 25(2), 743–755. https://doi.org/10.1007/s11036-019-01445-x
+
 Zeileis, A., Grothendieck, G., Ryan, J. A., Ulrich, J. M., & Andrews, F. (2023). Package ‘zoo’—Reference manual—S3 Infrastructure for Regular and Irregular Time Series (Z’s Ordered Observations). Comprehensive R Archive Network (CRAN). https://zoo.R-Forge.R-project.org/
 
 Zhu, X., Li, J., Liu, Z., Wang, S., & Yang, F. (2016). Learning Transportation Annotated Mobility Profiles from GPS Data for Context-Aware Mobile Services. 2016 IEEE International Conference on Services Computing (SCC), 475–482. https://doi.org/10.1109/SCC.2016.68
