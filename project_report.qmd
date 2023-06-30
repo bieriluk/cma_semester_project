@@ -2,10 +2,11 @@
 title: Improved Transport Mode Detection
 subtitle: How could POSMOs Transport Mode Detection be improved further using publicly available data
 author: Lukas Bieri (bieriluk) & Valentin Hett (hettval1)
-date: "06/27/2023"
+date: "06/30/2023"
 format: 
   html:
     code-fold: true
+    code-tools: true
 editor: source
 df-print: paged
 ---
@@ -18,7 +19,7 @@ Computational Movement Analysis is a widely researched field that aims to analys
 
 ## Introduction
 
-```{r}
+```{r label='intro'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -37,7 +38,7 @@ Computational Movement Analysis is a widely researched field that aims to analys
 
 #Autors: Valentin Hett (hettval1) & Lukas Bieri (bieriluk)
 
-#Date: 27.06.2023
+#Date: 30.06.2023
 ```
 
 Computational Movement Analysis is a widely researched field that uses algorithms and visual techniques to analyze and validate trajectory data to detect relationships, patterns and outliers in movement. However, current visualization systems predominantly target multilevel applications and macro-level results. A key component of mobility data processing is map matching, which involves matching GPS points to corresponding road network links to create accurate vehicle trajectories (Cai et al., 2018). GPS tracking is becoming more and more important in Movement Analysis. Platforms like Google Maps and other portals uses GPS to track routes, locations and other records. One major limitation of GPS however, is that it only can record positions and cannot provide context or semantics (Van der Spek et al., 2009). Even apps with support functions, where people are asked to fill in a movement protocol, this data is often incomplete due to laziness or forgotten memories (Sadeghian et al., 2022).
@@ -50,7 +51,7 @@ For this project, we set out to answer the following research questions:
 
 Considering the constrained resources, including time and computational power, available for this semester project, the primary goal is not to completely revolutionize transportation mode detection (TMD) using GPS data. Instead, the project goals are to explore different approaches from the existing literature by implementing them to the best of our abilities and from this experience brainstorm potential ways to improve TMD from POSMO data. Additionally, it is assumed that not all these approaches can be implemented fully in the form of algorithms within the framework of this project.
 
-```{r}
+```{r label='software'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -71,7 +72,7 @@ For the different TMD improvement approaches we mostly followed the method set o
 
 All data processing, analysis and visualization is done in R (4.2.1/2022-06-23) using RStudio (2023.06.0+421) and the packages: "ggplot2", "dplyr", "tidyr", "readr", "zoo", "data.table", "sf", "terra", "tmap", "stats", "randomForest", "lubridate", "trajr", "gstat", "geosphere", "nngeo", "vegan", "hms", "tibble", "useful", "DescTools", "utils" and "janitor". Last update of these packages was on the 23.06.2023. 
 
-```{r}
+```{r label='packages'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -95,7 +96,7 @@ tmap_mode(mode = "view")
 ```
 
 All necessary data sets are loaded into R, reprojected (where necessary) and filtered. An exploratory data analysis (EDA) is done for the POSMO data to determine the appropriate settings for data cleaning and outlier removal. 
-```{r}
+```{r label='prepro'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -115,9 +116,9 @@ kanton_zh <- kanton_zh |>
 st_crs(kanton_zh)
 
 #Visualize to verify
-tm_shape(kanton_zh) +
-  tm_polygons() +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(kanton_zh) +
+#   tm_polygons() +
+#   tm_basemap("Esri.WorldImagery")
 
 #### 3.1.2 Posmo data
 
@@ -146,12 +147,12 @@ posmo_valid <- st_as_sf(posmo_valid, coords = c("lon_x","lat_y"), crs = 4326) |>
 head(posmo)
 head(posmo_valid)
 
-tm_shape(posmo) +
-  tm_dots(col = "red") +
-  tm_basemap("Esri.WorldImagery")
-tm_shape(posmo_valid) +
-  tm_dots(col = "red") +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(posmo) +
+#   tm_dots(col = "red") +
+#   tm_basemap("Esri.WorldImagery")
+# tm_shape(posmo_valid) +
+#   tm_dots(col = "red") +
+#   tm_basemap("Esri.WorldImagery")
 
 #Extract the coordinates into separate colums to use them for euclidean distance calculation
 posmo_coordinates <- st_coordinates(posmo)
@@ -184,11 +185,11 @@ train_stops <- train_stops |>
   st_filter(kanton_zh, .pred = st_intersects)
 
 #Visualize to verify
-tm_shape(train_routes) +
-  tm_lines(col = "red") +
-  tm_shape(train_stops) + 
-  tm_dots(col = "red") +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(train_routes) +
+#   tm_lines(col = "red") +
+#   tm_shape(train_stops) + 
+#   tm_dots(col = "red") +
+#   tm_basemap("Esri.WorldImagery")
 
 #### 3.1.4 Bus & tram data
 
@@ -206,9 +207,9 @@ bus_routes <- bus_routes |>
   st_filter(kanton_zh, .pred = st_intersects)
 
 #Visualize to verify
-tm_shape(bus_routes)+
-  tm_lines()+
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(bus_routes)+
+#   tm_lines()+
+#   tm_basemap("Esri.WorldImagery")
 
 #### 3.1.5 Road network data
 
@@ -221,9 +222,9 @@ roads <- roads |>
   st_filter(kanton_zh, .pred = st_intersects)
 
 #Visualize to verify
-tm_shape(roads) +
-  tm_lines(col = "red") +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(roads) +
+#   tm_lines(col = "red") +
+#   tm_basemap("Esri.WorldImagery")
 
 ### 3.2  Getting an overview & EDA
 
@@ -269,7 +270,7 @@ posmo_valid <- posmo_valid |>
 
 The Public Transport data is sourced from Open Data Platforms and governmental GIS data bases. We used railway and boundary data from swissTLMRegio  (swisstopo, 2022a, 2022b) and bus data from the Zurich Transport Network (ZVV) (Verkehrsbetriebe Zürich VBZ, 2022). The POSMO data, is tracking data from one student in the module who provided his/her tracking data voluntarily to the class. For this tracking data set, we also have a validated data set with ground truth transport mode available. This data set was manually validated for TM by memory using the POSMO datamap online tool. The segmentation of trajectories was not changed for validation from the POSMO segmentation due to the high workload of this procedure.
 
-```{r}
+```{r label='figure_1'}
 #Visualize the used kontext data into one figure
 figure_1 <- tm_shape(kanton_zh) +
   tm_borders(col = "red",lwd = 3) +
@@ -290,7 +291,7 @@ figure_1
 Figure 1: Overview over the context data used for MCA (swisstopo, 2022a, 2022b; Verkehrsbetriebe Zürich VBZ, 2022)
 
 Duplicate time stamps are removed and the data is resamples with a constant 10s interval between points (incl. for the validated data for comparison) by linear interpolation for coordinated using the “zoo“-package (Zeileis et al., 2023). 
-```{r}
+```{r label='resamp'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -315,18 +316,18 @@ tail(posmo_valid_filter)
 
 #visualize the different days for EDA
 
-ggplot(posmo_filter, aes(X,Y, color = datetime)) +
-  geom_point() +
-  geom_path() +
-  coord_equal()
-
-tm_shape(posmo_filter) +
-  tm_dots() +
-  tm_basemap("Esri.WorldImagery")
-  
-tm_shape(posmo_valid_filter) +
-  tm_dots() +
-  tm_basemap("Esri.WorldImagery")
+# ggplot(posmo_filter, aes(X,Y, color = datetime)) +
+#   geom_point() +
+#   geom_path() +
+#   coord_equal()
+# 
+# tm_shape(posmo_filter) +
+#   tm_dots() +
+#   tm_basemap("Esri.WorldImagery")
+#   
+# tm_shape(posmo_valid_filter) +
+#   tm_dots() +
+#   tm_basemap("Esri.WorldImagery")
 
 #### 3.3.2 Remove deuplicate time stamps
 
@@ -388,9 +389,9 @@ posmo_filter_clean |>
 posmo_filter_clean |>
     filter(is.na(timelag_s))
 
-tm_shape(slice(posmo_filter_clean,1261)) +
-  tm_dots() +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(slice(posmo_filter_clean,1261)) +
+#   tm_dots() +
+#   tm_basemap("Esri.WorldImagery")
   
 posmo_filter_clean <- posmo_filter_clean |>
     filter(timelag_s > 0)
@@ -435,9 +436,9 @@ median(posmo_filter_clean$speed_ms, na.rm = TRUE)
 min(posmo_filter_clean$speed_ms, na.rm = TRUE)
 max(posmo_filter_clean$speed_ms, na.rm = TRUE)
 
-tm_shape(slice(posmo_filter_clean,1258:1260)) +
-  tm_dots() +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(slice(posmo_filter_clean,1258:1260)) +
+#   tm_dots() +
+#   tm_basemap("Esri.WorldImagery")
 
 #Speed bellow 220 km/h
 posmo_filter_clean |>
@@ -518,7 +519,7 @@ posmo_valid_filter_approx
 
 The movement data is then segmented by stops (non-movement periods) in the data using a combination of methods in (Laube & Purves, 2011)and (Sadeghian et al., 2022). Features for segmentation (timelag, steplenth, speed) are extracted and static points are defined as no more than an average movement of d = 100m in a moving window of v = 400s with 4 points averaged and a speed not exceeding 2km/h within a window of 30s. These thresholds where chosen based on plotting the segmented data and checking the results against the ground truth data set. Static points and short segments (<60s) are then removed from the data set.
 
-```{r}
+```{r label='segment'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -528,10 +529,10 @@ The movement data is then segmented by stops (non-movement periods) in the data 
 ### 4.1 Get an overview
 
 #Get an overview of the data before segmentation
-ggplot(posmo_filter_approx, aes(X,Y, color = datetime)) +
-  geom_point() +
-  geom_path() +
-  coord_equal()
+# ggplot(posmo_filter_approx, aes(X,Y, color = datetime)) +
+#   geom_point() +
+#   geom_path() +
+#   coord_equal()
 
 posmo_filter_approx|> 
   head(50) |> 
@@ -591,14 +592,14 @@ posmo_filter_segm <- posmo_filter_approx |>
 ### 4.5 Visualize stops
 
 #Visualize the stops to check if they line up with ground truth
-ggplot(posmo_filter_segm, aes(X,Y)) +
-  geom_path() +
-  geom_point(aes(color = static)) +
-  coord_equal()
-
-tm_shape(posmo_filter_segm) +
-  tm_dots(col = "static") +
-  tm_basemap("Esri.WorldImagery")
+# ggplot(posmo_filter_segm, aes(X,Y)) +
+#   geom_path() +
+#   geom_point(aes(color = static)) +
+#   coord_equal()
+# 
+# tm_shape(posmo_filter_segm) +
+#   tm_dots(col = "static") +
+#   tm_basemap("Esri.WorldImagery")
 
 ### 4.6 Segment-based analysis (segmentation at stationary points)
 
@@ -617,14 +618,14 @@ head(posmo_filter_segm)
 ### 4.7 Visualize segmented trajectories
 
 #Visualize the segmented trajectories
-ggplot(posmo_filter_segm, aes(X,Y)) +
-  geom_path() +
-  geom_point(aes(color = segment_id)) +
-  coord_equal()
-
-tm_shape(posmo_filter_segm) +
-  tm_dots(col = "segment_id") +
-  tm_basemap("Esri.WorldImagery")
+# ggplot(posmo_filter_segm, aes(X,Y)) +
+#   geom_path() +
+#   geom_point(aes(color = segment_id)) +
+#   coord_equal()
+# 
+# tm_shape(posmo_filter_segm) +
+#   tm_dots(col = "segment_id") +
+#   tm_basemap("Esri.WorldImagery")
 
 # Seems to line up well with ground truth for that day and the trips I took. If I would want to improve the segmentation, I would have to compare the details with reality and maybe smoothen out the differences in timelags.
 
@@ -648,16 +649,16 @@ posmo_filter_segm_clean <- posmo_filter_segm |>
   select(datetime, X, Y, geometry, segment_id, tm_unval)
 
 #Visualize to check
-tm_shape(posmo_filter_segm_clean) +
-  tm_dots(col = "segment_id") +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(posmo_filter_segm_clean) +
+#   tm_dots(col = "segment_id") +
+#   tm_basemap("Esri.WorldImagery")
 
 unique(posmo_filter_segm_clean$segment_id)
 ```
 
 After segmentation, further features are extracted from the trajectory, these are speed, acceleration, azimuth and sinuosity. They are also summarized by segment (minimum, maximum and mean) and rejoined with the full data set.
 
-```{r}
+```{r label='features'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -726,7 +727,7 @@ From (Sadeghian et al., 2022) and our own validated data comparison we found, th
 2.	maximum speed of all points in the segment must be below 12 km/h
 3.	if 90% of points within a segment are classified as “walking”, the full segment is assigned the walking mode
 
-```{r}
+```{r label='walking'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -743,11 +744,11 @@ posmo_filter_segm_walks <- posmo_filter_segm_clean |>
   )
 
 #Visualize only walks to check the results
-posmo_filter_segm_onlywalks <- posmo_filter_segm_walks |> 
-  filter(walks == TRUE)
-tm_shape(posmo_filter_segm_onlywalks) +
-  tm_dots(col = "walks") +
-  tm_basemap("Esri.WorldImagery")
+# posmo_filter_segm_onlywalks <- posmo_filter_segm_walks |> 
+#   filter(walks == TRUE)
+# tm_shape(posmo_filter_segm_onlywalks) +
+#   tm_dots(col = "walks") +
+#   tm_basemap("Esri.WorldImagery")
 
 #Summarize to label whole segments als walking segments if 90% of points within a segment are classified as “walking”
 posmo_filter_segm_onlywalks_sry <- posmo_filter_segm_walks |> 
@@ -770,7 +771,7 @@ posmo_filter_segm_onlywalks <- filter(posmo_filter_segm_walks, walk_seg == TRUE)
 
 For the next step in (Sadeghian et al., 2022) methodology, we used an unsupervised algorithm (k-means clustering) to cluster the full data set (excl. walking segments) into 4 clusters (i.e. bus/tram, train, bike and car) based on the aforementioned extracted features. As these clusters did no correspond well enough with validated TM, this step was later discarded for TMD.
 
-```{r}
+```{r label='kmeans'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -787,6 +788,13 @@ posmo_filter_seg_kmeans4 <- posmo_filter_segm_nowalks |>
 #Check the clusters
 posmo_filter_seg_kmeans4
 
+
+#Add cluster number to data frame
+posmo_filter_seg_cluster <- posmo_filter_segm_nowalks |> 
+  mutate(
+    kmeans4 = posmo_filter_seg_kmeans4$cluster
+  )
+
 #Check if the Clusters are destinct enought to manually assign them a TM
 posmo_filter_seg_kmeans4
 figure_3 <- posmo_filter_seg_cluster |>
@@ -795,17 +803,11 @@ figure_3 <- posmo_filter_seg_cluster |>
   tm_dots(col = "kmeans4", 
           palette = "Set2")
 
-#Add cluster number to data frame
-posmo_filter_seg_cluster <- posmo_filter_segm_nowalks |> 
-  mutate(
-    kmeans4 = posmo_filter_seg_kmeans4$cluster
-  )
-
-posmo_filter_seg_cluster |>
-  filter(as.Date(datetime) == "2023-06-15") |>
-  tm_shape() +
-  tm_dots(col = "kmeans4") +
-  tm_basemap("Esri.WorldImagery")
+# posmo_filter_seg_cluster |>
+#   filter(as.Date(datetime) == "2023-06-15") |>
+#   tm_shape() +
+#   tm_dots(col = "kmeans4") +
+#   tm_basemap("Esri.WorldImagery")
 
 #Test for non-multi-clusterd segments from the kmeans clusterin
 test <- posmo_filter_seg_cluster |> 
@@ -822,11 +824,11 @@ test <- posmo_filter_seg_cluster |>
     seg_clear = all(min(kmeans4) == max(kmeans4), na.rm = TRUE)
   )
 
-test |>
-  filter(seg_clear == TRUE) |>
-  tm_shape() +
-  tm_dots(col = "segment_id") +
-  tm_basemap("Esri.WorldImagery")
+# test |>
+#   filter(seg_clear == TRUE) |>
+#   tm_shape() +
+#   tm_dots(col = "segment_id") +
+#   tm_basemap("Esri.WorldImagery")
 
 table_2 <- data.frame(posmo_filter_seg_kmeans4$centers) |>
   mutate(
@@ -843,7 +845,7 @@ table_2 <- data.frame(posmo_filter_seg_kmeans4$centers) |>
          "Sinuosity" = sinuosity,
          "Avg. speed (m/s)" = avgspeed_ms
          )
-table_2
+# table_2
 
 posmo_filter_seg_kmeans4$centers
 
@@ -857,7 +859,7 @@ For bike mode:
 2.	maximum speed of all points in the segment must not exceed 40km/h
 3.	the total distance traveled in a segment must be below 20km
 
-```{r}
+```{r label='bike'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -873,19 +875,20 @@ posmo_filter_segm_bike <- posmo_filter_segm_walks |>
   )
 
 #Visualize only bike to check the results
-posmo_filter_segm_onlybike <- posmo_filter_segm_bike |> 
-  filter(bike == TRUE)
-posmo_filter_segm_nobike <- posmo_filter_segm_bike |> 
-  filter(bike == FALSE)
-  tm_shape(posmo_filter_segm_onlybike) +
-  tm_dots(col = "bike") +
-  tm_basemap("Esri.WorldImagery")
+ posmo_filter_segm_onlybike <- posmo_filter_segm_bike |> 
+   filter(bike == TRUE)
+ posmo_filter_segm_nobike <- posmo_filter_segm_bike |> 
+   filter(bike == FALSE)
+
+ # tm_shape(posmo_filter_segm_onlybike) +
+ #   tm_dots(col = "bike") +
+ #   tm_basemap("Esri.WorldImagery")
 ```
 
 For train mode:
 1.	the points must be within 10m of a railway line (based on swissTLMRegio railway lines)
 
-```{r}
+```{r label='train'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -898,9 +901,9 @@ trains_buffer <- train_routes |>
   st_union()
 
 #Visualize to check
-tm_shape(trains_buffer) +
-  tm_polygons() +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(trains_buffer) +
+#   tm_polygons() +
+#   tm_basemap("Esri.WorldImagery")
 
 # Label point as train if: (1) the points must be within 10m of a railway line (based on swissTLMRegio railway lines)
 posmo_filter_segm_train <- posmo_filter_segm_bike |> 
@@ -913,9 +916,10 @@ posmo_filter_segm_onlytrains <- posmo_filter_segm_train |>
   filter(train == TRUE)
 posmo_filter_segm_notrains <- posmo_filter_segm_train |> 
   filter(train == FALSE)
-  tm_shape(posmo_filter_segm_onlytrains) +
-  tm_dots(col = "train") +
-  tm_basemap("Esri.WorldImagery")
+
+# tm_shape(posmo_filter_segm_onlytrains) +
+#   tm_dots(col = "train") +
+#   tm_basemap("Esri.WorldImagery")
 ```
 
 For bus mode:
@@ -923,7 +927,7 @@ For bus mode:
 2.	segment’s average speed must be below 88km/h
 3.	maximum speed of all points in the segment must not exceed 100km/h
 
-```{r}
+```{r label='bus'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -936,9 +940,9 @@ bus_buffer <- bus_routes |>
   st_union()
 
 #Visualize to check
-tm_shape(bus_buffer) +
-  tm_polygons() +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(bus_buffer) +
+#   tm_polygons() +
+#   tm_basemap("Esri.WorldImagery")
 
 # Label point as bus if: (1) the points must be within 15m of a bus or tram line (based on ZVV public transport lines excl. trains), (2)	segment’s average speed must be below 88km/h and (3)	maximum speed of all points in the segment must not exceed 100km/h
 posmo_filter_segm_bus <- posmo_filter_segm_train |> 
@@ -951,9 +955,10 @@ posmo_filter_segm_onlybus <- posmo_filter_segm_bus |>
   filter(bus == TRUE)
 posmo_filter_segm_nobus <- posmo_filter_segm_bus |> 
   filter(bus == FALSE)
-tm_shape(posmo_filter_segm_onlybus) +
-  tm_dots(col = "bus") +
-  tm_basemap("Esri.WorldImagery")
+
+# tm_shape(posmo_filter_segm_onlybus) +
+#   tm_dots(col = "bus") +
+#   tm_basemap("Esri.WorldImagery")
 ```
 
 Overall, if more than 90% of points within segments were classified as belonging to bike, bus or train, the segment is classified as such. Where this is true for multiple transport modes, it is classified as unknown.
@@ -963,7 +968,7 @@ For car mode:
 2.	segment’s average speed must be higher than 15km/h
 3.	maximum speed of all points in the segment must not exceed 130km/h
 
-```{r}
+```{r label='car'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -976,9 +981,9 @@ road_buffer <- roads |>
   st_union()
 
 #Visualize to check
-tm_shape(road_buffer) +
-  tm_polygons() +
-  tm_basemap("Esri.WorldImagery")
+# tm_shape(road_buffer) +
+#   tm_polygons() +
+#   tm_basemap("Esri.WorldImagery")
 
 # Label point as car if: (1)	the points must be within 25m of a main road (based on swissTLMRegio roads), (2)	segment’s average speed must be higher than 15km/h and (3)	maximum speed of all points in the segment must not exceed 130km/h
 posmo_filter_segm_car <- posmo_filter_segm_bus |> 
@@ -991,14 +996,15 @@ posmo_filter_segm_onlycar <- posmo_filter_segm_car |>
   filter(car == TRUE)
 posmo_filter_segm_nocar <- posmo_filter_segm_car |> 
   filter(car == FALSE)
-tm_shape(posmo_filter_segm_onlycar) +
-  tm_dots(col = "car") +
-  tm_basemap("Esri.WorldImagery")
+
+# tm_shape(posmo_filter_segm_onlycar) +
+#   tm_dots(col = "car") +
+#   tm_basemap("Esri.WorldImagery")
 ```
 
 As the swissTLMRegio data set only includes main roads, only more than 50% of points need to be assigned the car mode for the segment to be designated a car segment. If a segment is both classified as bus and car acc. to the criteria, the segment is assigned the bus mode.
 
-```{r}
+```{r label='mca'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -1054,17 +1060,17 @@ sum(posmo_filter_segm_mca$tm_own == 6, na.rm = TRUE)
 sum(posmo_filter_segm_mca$tm_own == 7, na.rm = TRUE)
 sum(posmo_filter_segm_mca$tm_own == 8, na.rm = TRUE)
 
-posmo_filter_segm_mca |>
-  filter(as.Date(datetime) == "2023-05-13") |>
-  tm_shape() +
-  tm_dots(col = "tm_own") +
-  tm_basemap("Esri.WorldImagery")
+# posmo_filter_segm_mca |>
+#   filter(as.Date(datetime) == "2023-05-13") |>
+#   tm_shape() +
+#   tm_dots(col = "tm_own") +
+#   tm_basemap("Esri.WorldImagery")
 ```
 
 The third step in the Sadeghian et al. (2022) stepwise procedure is a supervised learning algorithm. The Random Forest supervised learning algorithm could however not be implemented in this project, due to a lack of exactly segmented training data and lack of modelling experience with machine learning on our part.
 The results of this TMD are then compared to both the validated TM and the POSMO assigned TM.
 
-```{r}
+```{r label='analysis'}
 #| echo: false
 #| warning: false
 #| message: false
@@ -1144,7 +1150,7 @@ table_1 <- tm_compare_sry |>
          "Accuracy rate POSMO (%)" = posmo_correct_pct,
          "Accuracy rate New (%)" = own_correct_pct
          )
-table_1
+# table_1
 
 
 ### 9.3 Visualizations
@@ -1190,14 +1196,14 @@ figure_2 <- tm_compare_label |>
   tm_dots(col = c("Transport Modes POSMO", "Transport Modes MCA", "Transport Modes Ground Truth"), 
           palette = "Set2") + 
   tm_facets(nrow = 2, sync = TRUE)
-figure_2
+# figure_2
 ```
 
 ## Results
 
 The multi criteria analysis (MCA), which ended up being the only implemented algorithm in the stepwise procedure by (Sadeghian et al., 2022), was 45% accurate in assigning TM when compared to the manually validated ground truth data. 
 
-```{r}
+```{r label='figure_2'}
 figure_2
 ```
 Figure 2: Comparison of POSMO TM and our own MCA TM (top) and the ground truth TM (bottom) for the 3rd of June 2023 on a map
@@ -1209,11 +1215,11 @@ Table 1: Confusion matrix of transport mode detection and accuracy rates for POS
 Kmeans clustering as implemented on the raw data excl. walking segments directly did not yield clearly assigned segments. The clusters cannot be intuitively attributed to the transport modes and the only non-multiclassified clusters (all points the same cluster) when compared to the validated TM are short walking segments that where not assigned by the multi criteria analysis.
 
 Table 2: Clusters from K-means analysis (K= 4)
-```{r}
+```{r label='table_2'}
 table_2
 ```
 
-```{r}
+```{r label='figure_3'}
 figure_3
 ```
 Figure 3: Example of K-means clusters for the 3rd of June 2023 on a map
@@ -1231,8 +1237,6 @@ There are multiple comparatively easy paths to improve the described multi crite
 
 The use of public transportation schedules (i.e. arrival and departure times for public transport lines) can also potentially improve the accuracy of the TMD by using them as a reference for predicting the transportation mode in multi criteria analysis, as demonstrated by (Sadeghian et al., 2022). This however largely depends on accurate segmentation to determine the correct beginning and end of a trip. POSMO also seems to struggle with this, as we have seen many segments were changing e.g. from tram to bus was not segmented (see example in Figure 4).
 
-
-![Figure 4: Example of incorrectly segmented trajectory in the POSMO on the 7th of June (Screenshot from the 17th of June, source: https://posmo.datamap.io/posmo-project)](figure_4.png)
 
 To avoid this problem of making the criteria solely dependent on beginning and end of segments, we suggest constructing artificial trajectories for all public transport lines based on the schedule e.g. using the “traj” package with its “TrajGenerate” function (McLean & Skowron Volponi, 2018) or more complex methods for trajectory prediction from autonomous driving research (Rossi et al., 2021). The tracking data segments can be compared to these artificial public transport trajectories with spatio-temporal similarity measures and using these for classification. Longest Common Subsequence (LCSS) would be a promising candidate for this, due to its robustness to noise and focus on similar portions of trajectories (Vlachos et al., 2002).
 
@@ -1275,6 +1279,7 @@ Verkehrsbetriebe Zürich VBZ. (2022). Produktblatt Geodatensatz—Linien des öf
 Vlachos, M., Kollios, G., & Gunopulos, D. (2002). Discovering similar multidimensional trajectories. Proceedings 18th International Conference on Data Engineering, 673–684. https://doi.org/10.1109/ICDE.2002.994784
 Wan, S., Qi, L., Xu, X., Tong, C., & Gu, Z. (2020). Deep Learning Models for Real-time Human Activity Recognition with Smartphones. Mobile Networks and Applications, 25(2), 743–755. https://doi.org/10.1007/s11036-019-01445-x
 Zeileis, A., Grothendieck, G., Ryan, J. A., Ulrich, J. M., & Andrews, F. (2023). Package ‘zoo’—Reference manual—S3 Infrastructure for Regular and Irregular Time Series (Z’s Ordered Observations). Comprehensive R Archive Network (CRAN). https://zoo.R-Forge.R-project.org/
+
 Zhu, X., Li, J., Liu, Z., Wang, S., & Yang, F. (2016). Learning Transportation Annotated Mobility Profiles from GPS Data for Context-Aware Mobile Services. 2016 IEEE International Conference on Services Computing (SCC), 475–482. https://doi.org/10.1109/SCC.2016.68
 
 
