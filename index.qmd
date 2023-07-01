@@ -836,7 +836,7 @@ posmo_filter_seg_kmeans4$centers
 
 From here, further MCA was used to assign bike, train, bus (incl. tram) and car modes with the following criteria:
 
-1. Segments average speed must be below 25 km/h for bike and 88km/h for bus or higher than 15km/h for cars
+1. Segments average speed  must be below 25 km/h for bike and 88km/h for bus or higher than 15km/h for cars
 2. The maximum speed of all point in the segment must not exceed 40 km/h for bike, 100 km/h for bus and 130 km/h for car
 3. The points must be within 10 m from a railway line, 15 m from a bus or tram line and 25 m from a main road
 4. The total distance travelled in a segment must be below 20 km for bikes
