@@ -48,7 +48,7 @@ The project, while having some limitations in the implementation, presents ideas
 #Info: Most visualizations have been commented out due buffer overflow, with the expection of the figues in this report.
 ```
 
-Computational Movement Analysis is a widely researched field that uses algorithms and visual techniques to analyse and validate trajectory data to detect relationships, patterns and outliers in movement. However, current visualization systems predominantly target multilevel applications and macro-level results. GPS tracking is becoming more and more important in Movement Analysis. One major limitation of GPS is, that it can only record positions and cannot provide context or semantics (Van der Spek et al., 2009). Even apps with support functions, where people are asked to fill in a movement protocol Often leads to incomplete data, due to laziness or forgotten memories (Sadeghian et al., 2022).
+Computational Movement Analysis is a widely researched field that uses algorithms and visual techniques to analyse and validate trajectory data to detect relationships, patterns and outliers in movement. However, current visualization systems predominantly target multilevel applications and macro-level results. GPS tracking is becoming more and more important in Movement Analysis. One major limitation of GPS is, that it can only record positions and cannot provide context or semantics (Van der Spek et al., 2009). Even apps with support functions, where people are asked to fill in a movement protocol often leads to incomplete data, due to laziness or forgotten memories (Sadeghian et al., 2022).
 
 The utilized tracking app POSMO records, analyses and visualizes trajectories from mobility data. POSMO has already implemented algorithms to determine the transport modes (TM) for recorded trajectories. Like any GPS recording, there is noise (unintended datapoints) and variability, which can lead to incorrect conclusions. Accurate Transport Mode Detection (TMD) is necessary for many movement analysis tasks, e.g. to improve public transport planning or to find the most fuel-saving routes by car. There are many different approaches found in literature review to TMD. Sadeghian et al. (2022) showed that accurate TMD was possible using a combination of unsupervised and supervised leaning algorithms with a spatial multi criteria analysis (MCA) incl. context maps.
 
@@ -838,7 +838,7 @@ From here, further MCA was used to assign bike, train, bus (incl. tram) and car 
 
 1. Segments average speed  must be below 25 km/h for bike and 88km/h for bus or higher than 15km/h for cars
 2. The maximum speed of all point in the segment must not exceed 40 km/h for bike, 100 km/h for bus and 130 km/h for car
-3. The points must be within 10 m from a railway line, 15 m from a bus or tram line and 25 m from a main road
+3. The points must be within 10 m from a railway line for train, 15 m from a bus or tram line for bus and 25 m from a main road for car
 4. The total distance travelled in a segment must be below 20 km for bikes
 
 ```{r results = 'hide'}
@@ -1175,7 +1175,7 @@ figure_3
 
 ## Discussion
 
-Due to the mentioned limitations, the TMD from this project could not be further optimized. Therefore, a more detailed statistical evaluation is not carried out, as we only used these results and experiences from the implementation for the discussion of possible improvement paths. For any further work, spatial statistics, correlation analysis and Bayesian accuracy assessments (Magnussen, 2009) are suggested.
+Due to the mentioned limitations, the TMD for this project could not be further optimized. Therefore, a more detailed statistical evaluation is not carried out, as we only used these results and experiences from the implementation for the discussion of possible improvement paths. For any further work, spatial statistics, correlation analysis and Bayesian accuracy assessments (Magnussen, 2009) are suggested.
 
 Given more time to experiment with different settings, thresholds and window sizes, the utilized TMD could still be significantly improved.
 
